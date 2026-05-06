@@ -471,6 +471,13 @@ export default function NewRequest() {
             </Field>
           )}
 
+          <Field label="Remark">
+            <textarea className="input-field min-h-[60px] resize-y" placeholder="Any notes or flags…"
+              value={form.remark} onChange={e => set('remark', e.target.value)} />
+          </Field>
+        </Section>
+
+        {error && (
           <div className="flex items-center gap-2 text-danger text-sm bg-red-50 border border-red-200 rounded-lg px-4 py-3">
             <AlertCircle size={15} /> {error}
           </div>
