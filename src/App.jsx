@@ -4,7 +4,7 @@ import Navbar from './components/Navbar'
 import Login from './pages/Login'
 import Board from './pages/Board'
 import NewRequest from './pages/NewRequest'
-import TodayPromos from './pages/TodayPromos'
+import PromoCalendar from './pages/PromoCalendar'
 import Analytics from './pages/Analytics'
 import SkuUpload from './pages/SkuUpload'
 import AdminPage from './pages/AdminPage'
@@ -29,7 +29,7 @@ function AppRoutes() {
         <Routes>
           <Route path="/"          element={<Board />} />
           <Route path="/new"       element={<NewRequest />} />
-          <Route path="/today"     element={<TodayPromos />} />
+          <Route path="/today"     element={<PromoCalendar />} />
           <Route path="/skus"      element={<SkuUpload />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/admin"     element={<AdminPage />} />
