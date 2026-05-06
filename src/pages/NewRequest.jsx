@@ -2,129 +2,241 @@ import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import {
-  CATEGORIES, OFFER_TYPES, FUNDED_BY_OPTIONS,
-  ASSORTMENT_TYPES, OFFLINE_ONLINE_OPTIONS,
-  STATUS_OPTIONS, CURRENT_STATUS_OPTIONS, SHOPIFY_STATUS_OPTIONS,
-  todayISO,
-} from '../lib/constants'
+  FUNDED_BY_OPTIONS, ASSORTMENT_TYPES, OFFLINE_ONLINE_OPTIONS, todayISO,
+} from '../lib/constants.jsx'
 import { Section, Field, StoreToggle } from '../components/FormParts'
 import {
   CheckCircle, AlertCircle, Loader2, Plus, Trash2,
-  Search, Copy, X, Info,
+  Search, X, ArrowLeft, FileText, Copy, Download,
+  Percent, Tag,
 } from 'lucide-react'
 
-const BLANK_RANGE = { from: '', till: '', stores: [] }
+const CATEGORIES = [
+  'Footwear',
+  'Fashion (Fashion Accessories, Clothing, Jewellery)',
+  'Beauty and Personal Care',
+  'Luggage and Bags',
+  'Others',
+  'Gifting',
+  'Electronics',
+  'Kids',
+  'Home',
+]
+
+const BLANK_RANGE = { from: '', till: '' }
 
 const BLANK_FORM = {
-  week_label: '', store: [], category: '', brand_names: '', poc_name: '',
-  funded_by: '', offer_type: '', promo_details: '', promotion_name: '',
-  assortment_type: '', offline_online: '',
-  broadway_discount_pct: '', brand_discount_pct: '',
-  broadway_discount_both: '', brand_discount_both: '',
+  store: [],
+  category: '',
+  brand_names: '',
+  poc_name: '',
+  funded_by: '',
+  broadway_pct_split: '',
+  brand_pct_split: '',
+  offer_type: '',
+  promo_details: '',
+  promotion_name: '',
+  assortment_type: '',
+  offline_online: '',
   date_ranges: [{ ...BLANK_RANGE }],
-  approval_email: '', approval_email_alt: '',
-  rsp_file_link: '', sku_file_link: '',
-  status: 'Pending', current_status: 'Not Live',
-  shopify_promo_status: '', ginesys_promo_id: '', shopify_discount_id: '',
+  approval_email: '',
+  sku_file_link: '',
+  rsp_file_link: '',
   remark: '',
+  status: 'Pending',
+  current_status: 'Not Live',
 }
 
-export default function NewRequest() {
-  const navigate = useNavigate()
-  const [form, setForm] = useState({ ...BLANK_FORM })
+// ─── Sample downloads ─────────────────────────────────────────────────────────
+function downloadSamplePromo() {
+  const csv = [
+    'Barcode,SKU Name,Brand Name,MRP,Discount %,RSP',
+    '8901234567890,Product Name 250ml,Brand Name,399,20,319',
+    '8901234567891,Another Product 100g,Brand Name,199,15,169',
+  ].join('\n')
+  trigger(csv, 'sample-promotion-skus.csv')
+}
+
+function downloadSampleRSP() {
+  const csv = [
+    'Barcode,SKU Name,Brand Name,MRP,RSP',
+    '8901234567890,Product Name 250ml,Brand Name,399,319',
+    '8901234567891,Another Product 100g,Brand Name,199,169',
+  ].join('\n')
+  trigger(csv, 'sample-rsp-update-skus.csv')
+}
+
+function trigger(csv, filename) {
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
+function isValidPOCEmail(e) { return /^[a-zA-Z0-9._%+-]+@broadwaylive\.in$/.test(e) }
+
+// ─── Step 1: Fresh or Replicate ───────────────────────────────────────────────
+function StepEntryType({ onChoose }) {
+  return (
+    <div className="max-w-xl mx-auto px-4 py-16 fade-in">
+      <div className="mb-10 text-center">
+        <h1 className="font-display text-3xl font-bold text-ink">New Promo Request</h1>
+        <p className="text-muted font-body mt-2 text-sm">Step 1 of 3 — Entry type</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <ChoiceCard
+          icon={<FileText size={20} className="text-accent" />}
+          iconBg="bg-accent/10 group-hover:bg-accent/20"
+          title="Fresh Entry"
+          desc="Fill in all details from scratch for a brand new promo."
+          onClick={() => onChoose('new')}
+        />
+        <ChoiceCard
+          icon={<Copy size={20} className="text-ink" />}
+          iconBg="bg-ink/10 group-hover:bg-ink/20"
+          title="Based on Existing Promo"
+          desc="Enter a past Promo ID — details will be pre-filled."
+          onClick={() => onChoose('replicate')}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ─── Step 2: Offer type ───────────────────────────────────────────────────────
+function StepOfferType({ onChoose, onBack }) {
+  return (
+    <div className="max-w-xl mx-auto px-4 py-16 fade-in">
+      <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink mb-8 transition-colors">
+        <ArrowLeft size={14} /> Back
+      </button>
+      <div className="mb-10 text-center">
+        <h1 className="font-display text-3xl font-bold text-ink">What type of promo?</h1>
+        <p className="text-muted font-body mt-2 text-sm">Step 2 of 3 — Offer type</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <ChoiceCard
+          icon={<Percent size={20} className="text-info" />}
+          iconBg="bg-info/10 group-hover:bg-info/20"
+          title="Promotion"
+          desc={<>% discount on SKUs.<br />e.g. Flat 20% off, Buy 2 Get 15% off</>}
+          onClick={() => onChoose('Promotion')}
+          sample={{ label: 'Sample format: Barcode, SKU Name, Brand, MRP, Discount %, RSP', fn: downloadSamplePromo }}
+        />
+        <ChoiceCard
+          icon={<Tag size={20} className="text-success" />}
+          iconBg="bg-success/10 group-hover:bg-success/20"
+          title="RSP Update"
+          desc={<>Fixed selling price update.<br />e.g. New RSP ₹319 instead of ₹399</>}
+          onClick={() => onChoose('RSP Update')}
+          sample={{ label: 'Sample format: Barcode, SKU Name, Brand, MRP, RSP', fn: downloadSampleRSP }}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ─── Step 2b: Replicate lookup ────────────────────────────────────────────────
+function StepReplicate({ onFound, onBack }) {
+  const [dupeId, setDupeId] = useState('')
   const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
   const [error, setError] = useState(null)
 
-  // Replicate from ID
-  const [dupeId, setDupeId] = useState('')
-  const [dupeLoading, setDupeLoading] = useState(false)
-  const [dupeMsg, setDupeMsg] = useState(null) // { type: 'ok'|'err', text }
-
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
-
-  // ── Date ranges ──────────────────────────────────────────────────────────
-  const addRange = () => setForm(f => ({ ...f, date_ranges: [...f.date_ranges, { ...BLANK_RANGE }] }))
-  const removeRange = (i) => setForm(f => ({ ...f, date_ranges: f.date_ranges.filter((_, idx) => idx !== i) }))
-  const setRange = (i, key, val) => setForm(f => ({
-    ...f,
-    date_ranges: f.date_ranges.map((r, idx) => idx === i ? { ...r, [key]: val } : r),
-  }))
-  const toggleRangeStore = (i, s) => setForm(f => ({
-    ...f,
-    date_ranges: f.date_ranges.map((r, idx) => {
-      if (idx !== i) return r
-      const arr = r.stores || []
-      return { ...r, stores: arr.includes(s) ? arr.filter(x => x !== s) : [...arr, s] }
-    }),
-  }))
-
-  // ── Replicate from existing promo ────────────────────────────────────────
-  const handleReplicate = useCallback(async () => {
+  const handleSearch = useCallback(async () => {
     if (!dupeId.trim()) return
-    setDupeLoading(true)
-    setDupeMsg(null)
-
+    setLoading(true); setError(null)
     const query = dupeId.trim().startsWith('#') ? dupeId.trim() : `#${dupeId.trim()}`
     const { data, error: err } = await supabase
       .from('promo_requests').select('*').eq('promo_request_id', query).single()
-
-    setDupeLoading(false)
-
-    if (err || !data) {
-      setDupeMsg({ type: 'err', text: `No promo found with ID "${query}". Check the ID and try again.` })
-      return
-    }
-
-    // Strip identity + status fields — this will be a brand new entry
+    setLoading(false)
+    if (err || !data) { setError(`No promo found with ID "${query}".`); return }
     const { id, created_at, promo_request_id, date_of_entry,
       ginesys_promo_id, shopify_discount_id, status, current_status,
       shopify_promo_status, ...rest } = data
+    onFound({
+      ...BLANK_FORM, ...rest,
+      store: Array.isArray(rest.store) ? rest.store : (rest.store || '').split(',').map(s => s.trim()).filter(Boolean),
+      date_ranges: [{ ...BLANK_RANGE }],
+      status: 'Pending', current_status: 'Not Live',
+    }, promo_request_id, rest.offer_type)
+  }, [dupeId, onFound])
 
-    setForm({
-      ...BLANK_FORM,
-      ...rest,
-      store: Array.isArray(rest.store)
-        ? rest.store
-        : (rest.store || '').split(',').map(s => s.trim()).filter(Boolean),
-      date_ranges: [{ ...BLANK_RANGE }], // always start fresh
-      status: 'Pending',
-      current_status: 'Not Live',
-      shopify_promo_status: '',
-      ginesys_promo_id: '',
-      shopify_discount_id: '',
-    })
-    setDupeMsg({ type: 'ok', text: `Fields copied from ${query}. Enter new date ranges and submit.` })
-    setDupeId('')
-  }, [dupeId])
+  return (
+    <div className="max-w-xl mx-auto px-4 py-16 fade-in">
+      <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink mb-8 transition-colors">
+        <ArrowLeft size={14} /> Back
+      </button>
+      <h1 className="font-display text-3xl font-bold text-ink mb-2">Enter Existing Promo ID</h1>
+      <p className="text-muted font-body text-sm mb-8">Step 2 of 3 — We'll pre-fill all details. Just enter new date ranges.</p>
+      <div className="bg-white border border-border rounded-xl p-6 space-y-4">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input
+              className="w-full bg-paper border border-border rounded-lg pl-8 pr-3 py-3 text-sm font-body placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+              placeholder="e.g. BWP0001 or #BWP0001"
+              value={dupeId} onChange={e => setDupeId(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSearch()} autoFocus />
+          </div>
+          <button onClick={handleSearch} disabled={loading || !dupeId.trim()}
+            className="flex items-center gap-1.5 px-5 py-3 bg-ink text-white text-sm font-body rounded-lg hover:bg-gray-800 disabled:opacity-40 transition-colors">
+            {loading ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />} Find
+          </button>
+        </div>
+        {error && <p className="text-danger text-xs flex items-center gap-1.5"><X size={11} /> {error}</p>}
+      </div>
+    </div>
+  )
+}
 
-  // ── Submit ────────────────────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────────────
+export default function NewRequest() {
+  const navigate = useNavigate()
+  // 'entry-type' | 'offer-type' | 'replicate' | 'form'
+  const [step, setStep] = useState('entry-type')
+  const [entryType, setEntryType] = useState(null)   // 'new' | 'replicate'
+  const [offerType, setOfferType] = useState(null)   // 'Promotion' | 'RSP Update'
+  const [form, setForm] = useState({ ...BLANK_FORM })
+  const [sourceId, setSourceId] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [error, setError] = useState(null)
+  const [pocError, setPocError] = useState('')
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const addRange = () => setForm(f => ({ ...f, date_ranges: [...f.date_ranges, { ...BLANK_RANGE }] }))
+  const removeRange = (i) => setForm(f => ({ ...f, date_ranges: f.date_ranges.filter((_, idx) => idx !== i) }))
+  const setRange = (i, key, val) => setForm(f => ({
+    ...f, date_ranges: f.date_ranges.map((r, idx) => idx === i ? { ...r, [key]: val } : r),
+  }))
+
+  const handlePOCBlur = () => {
+    if (form.poc_name && !isValidPOCEmail(form.poc_name))
+      setPocError('Must be a valid @broadwaylive.in email')
+    else setPocError('')
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setLoading(true)
-    setError(null)
-
+    if (!isValidPOCEmail(form.poc_name)) { setPocError('Must be a valid @broadwaylive.in email'); return }
+    if (splitError) return
+    setLoading(true); setError(null)
     const validRanges = form.date_ranges.filter(r => r.from && r.till)
-    if (!validRanges.length) {
-      setError('Please fill in at least one complete date range (from + till).')
-      setLoading(false)
-      return
-    }
-
+    if (!validRanges.length) { setError('Please fill in at least one complete date range.'); setLoading(false); return }
     const payload = {
       ...form,
+      offer_type: offerType,
       store: Array.isArray(form.store) ? form.store.join(', ') : form.store,
       date_ranges: validRanges,
       date_of_entry: todayISO(),
     }
-
     const { error: err } = await supabase.from('promo_requests').insert([payload])
     setLoading(false)
     if (err) { setError(err.message) } else { setSuccess(true); setTimeout(() => navigate('/'), 2000) }
   }
 
   if (success) return (
-    <div className="max-w-lg mx-auto mt-24 text-center px-4">
+    <div className="max-w-lg mx-auto mt-24 text-center px-4 fade-in">
       <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
         <CheckCircle className="text-success" size={32} />
       </div>
@@ -133,81 +245,131 @@ export default function NewRequest() {
     </div>
   )
 
+  // ── Step routing ─────────────────────────────────────────────────────────
+  if (step === 'entry-type') return (
+    <StepEntryType onChoose={(type) => {
+      setEntryType(type)
+      if (type === 'new') setStep('offer-type')
+      else setStep('replicate')
+    }} />
+  )
+
+  if (step === 'replicate') return (
+    <StepReplicate
+      onBack={() => setStep('entry-type')}
+      onFound={(prefilled, fromId, foundOfferType) => {
+        setForm(prefilled)
+        setSourceId(fromId)
+        setOfferType(foundOfferType)
+        setStep('form')
+      }}
+    />
+  )
+
+  if (step === 'offer-type') return (
+    <StepOfferType
+      onBack={() => setStep('entry-type')}
+      onChoose={(type) => {
+        setOfferType(type)
+        setForm({ ...BLANK_FORM, offer_type: type })
+        setStep('form')
+      }}
+    />
+  )
+
+  // ── Form ─────────────────────────────────────────────────────────────────
   const isBoth = form.funded_by === 'Both'
+  const isSelectedSKUs = form.assortment_type === 'Selected SKUs'
+  const isRSP = offerType === 'RSP Update'
+  const isPromo = offerType === 'Promotion'
+
+  const splitTotal = (parseFloat(form.broadway_pct_split) || 0) + (parseFloat(form.brand_pct_split) || 0)
+  const splitError = isBoth && form.broadway_pct_split && form.brand_pct_split && splitTotal !== 100
+    ? `Total must equal 100% (currently ${splitTotal}%)`
+    : ''
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 fade-in">
-      <div className="mb-6">
-        <h1 className="font-display text-3xl font-bold text-ink">New Promo Request</h1>
-        <p className="text-muted font-body mt-1 text-sm">Fields marked <span className="text-accent">*</span> are required.</p>
-      </div>
-
-      {/* ── Replicate panel ── */}
-      <div className="bg-white border border-border rounded-xl p-4 mb-5">
-        <p className="text-[11px] font-mono uppercase tracking-widest text-muted mb-3">
-          Replicate from existing promo
-        </p>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-            <input
-              className="w-full bg-paper border border-border rounded-lg pl-8 pr-3 py-2 text-sm font-body placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
-              placeholder="Enter Promo ID (e.g. 102 or #102)"
-              value={dupeId}
-              onChange={e => setDupeId(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleReplicate())}
-            />
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={() => entryType === 'replicate' ? setStep('replicate') : setStep('offer-type')}
+          className="flex items-center gap-1.5 text-sm text-muted hover:text-ink transition-colors">
+          <ArrowLeft size={14} />
+        </button>
+        <div>
+          <div className="flex items-center gap-2 mb-0.5">
+            <h1 className="font-display text-2xl font-bold text-ink">
+              {sourceId ? `New Promo (based on ${sourceId})` : 'New Promo Request'}
+            </h1>
+            {/* Offer type badge */}
+            <span className={`text-[11px] font-mono px-2 py-0.5 rounded-full border ${
+              isPromo ? 'bg-blue-50 text-info border-blue-200' : 'bg-emerald-50 text-success border-emerald-200'
+            }`}>
+              {offerType}
+            </span>
           </div>
-          <button type="button" onClick={handleReplicate}
-            disabled={dupeLoading || !dupeId.trim()}
-            className="flex items-center gap-1.5 px-4 py-2 bg-ink text-white text-sm font-body rounded-lg hover:bg-gray-800 disabled:opacity-40 transition-colors">
-            {dupeLoading ? <Loader2 size={13} className="animate-spin" /> : <Copy size={13} />}
-            Copy
-          </button>
-        </div>
-        {dupeMsg && (
-          <p className={`text-xs mt-2 flex items-center gap-1 ${dupeMsg.type === 'ok' ? 'text-success' : 'text-danger'}`}>
-            {dupeMsg.type === 'ok' ? <CheckCircle size={11} /> : <X size={11} />}
-            {dupeMsg.text}
+          <p className="text-xs font-body text-muted">
+            {sourceId ? `Pre-filled from ${sourceId} — new Promo ID assigned on submit.` : 'Step 3 of 3 — Fill in the details below.'}
           </p>
-        )}
-        <p className="text-[11px] text-muted mt-2 flex items-start gap-1">
-          <Info size={11} className="mt-0.5 shrink-0" />
-          Pre-fills all brand/offer fields. You'll still need to enter fresh date ranges. Gets a new Promo ID on submit.
-        </p>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
 
         {/* Brand & Identity */}
         <Section title="Brand & Identity">
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Category" required>
-              <select className="input-field" required value={form.category} onChange={e => set('category', e.target.value)}>
-                <option value="">Select…</option>
-                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-              </select>
-            </Field>
-            <Field label="Week Label" hint="e.g. Week 8">
-              <input className="input-field" placeholder="Week 8" value={form.week_label} onChange={e => set('week_label', e.target.value)} />
-            </Field>
-          </div>
+          <Field label="Category" required>
+            <select className="input-field" required value={form.category} onChange={e => set('category', e.target.value)}>
+              <option value="">Select…</option>
+              {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+            </select>
+          </Field>
 
           <Field label="Brand Name(s)" required hint="Comma separated if multiple — e.g. MamaEarth, Aqualogica">
-            <input className="input-field" required placeholder="MamaEarth, Aqualogica" value={form.brand_names} onChange={e => set('brand_names', e.target.value)} />
+            <input className="input-field" required placeholder="MamaEarth, Aqualogica"
+              value={form.brand_names} onChange={e => set('brand_names', e.target.value)} />
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Broadway POC Name" required>
-              <input className="input-field" required placeholder="Your name" value={form.poc_name} onChange={e => set('poc_name', e.target.value)} />
+            <Field label="POC Mail ID" required hint="Must be @broadwaylive.in">
+              <input
+                className={`input-field ${pocError ? 'border-danger' : ''}`}
+                required type="email" placeholder="name@broadwaylive.in"
+                value={form.poc_name}
+                onChange={e => { set('poc_name', e.target.value); setPocError('') }}
+                onBlur={handlePOCBlur}
+              />
+              {pocError && <p className="text-danger text-[11px] mt-1">{pocError}</p>}
             </Field>
             <Field label="Funded By" required>
-              <select className="input-field" required value={form.funded_by} onChange={e => set('funded_by', e.target.value)}>
+              <select className="input-field" required value={form.funded_by}
+                onChange={e => { set('funded_by', e.target.value); set('broadway_pct_split', ''); set('brand_pct_split', '') }}>
                 <option value="">Select…</option>
                 {FUNDED_BY_OPTIONS.map(o => <option key={o}>{o}</option>)}
               </select>
             </Field>
           </div>
+
+          {/* % split — only when Both */}
+          {isBoth && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+              <p className="text-xs font-display font-semibold text-warning">Funding Split — must total 100%</p>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Broadway %" required>
+                  <input className="input-field" required type="number" min="0" max="100" placeholder="e.g. 50"
+                    value={form.broadway_pct_split} onChange={e => set('broadway_pct_split', e.target.value)} />
+                </Field>
+                <Field label="Brand %" required>
+                  <input className="input-field" required type="number" min="0" max="100" placeholder="e.g. 50"
+                    value={form.brand_pct_split} onChange={e => set('brand_pct_split', e.target.value)} />
+                </Field>
+              </div>
+              {splitError && <p className="text-danger text-[11px]">{splitError}</p>}
+              {!splitError && form.broadway_pct_split && form.brand_pct_split && (
+                <p className="text-success text-[11px]">✓ Split adds up to 100%</p>
+              )}
+            </div>
+          )}
 
           <Field label="Store(s)" hint="Select all that apply">
             <StoreToggle selected={form.store} onChange={v => set('store', v)} />
@@ -216,13 +378,11 @@ export default function NewRequest() {
 
         {/* Date Ranges */}
         <Section title="Date Ranges">
-          <p className="text-xs text-muted font-body -mt-2">
-            Add multiple rows if the same promo runs in separate periods, or different stores have different dates.
-          </p>
+          <p className="text-xs text-muted -mt-2">Add multiple rows if the promo runs in separate periods.</p>
           <div className="space-y-3">
             {form.date_ranges.map((range, i) => (
-              <div key={i} className="border border-border rounded-lg p-3 bg-paper/40 space-y-3">
-                <div className="flex items-center justify-between">
+              <div key={i} className="border border-border rounded-lg p-3 bg-paper/40">
+                <div className="flex items-center justify-between mb-3">
                   <span className="text-[11px] font-mono text-muted uppercase">Range {i + 1}</span>
                   {form.date_ranges.length > 1 && (
                     <button type="button" onClick={() => removeRange(i)} className="text-danger hover:opacity-70">
@@ -232,27 +392,14 @@ export default function NewRequest() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Valid From" required>
-                    <input type="date" className="input-field" required value={range.from} onChange={e => setRange(i, 'from', e.target.value)} />
+                    <input type="date" className="input-field" required
+                      value={range.from} onChange={e => setRange(i, 'from', e.target.value)} />
                   </Field>
                   <Field label="Valid Till" required>
-                    <input type="date" className="input-field" required value={range.till} onChange={e => setRange(i, 'till', e.target.value)} />
+                    <input type="date" className="input-field" required
+                      value={range.till} onChange={e => setRange(i, 'till', e.target.value)} />
                   </Field>
                 </div>
-                <Field label="Stores for this range" hint="Leave blank to use the main store selection above">
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {['VK, Delhi', 'BH, Hyderabad', 'Pune'].map(s => (
-                      <button key={s} type="button"
-                        onClick={() => toggleRangeStore(i, s)}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-body border transition-colors ${
-                          (range.stores || []).includes(s)
-                            ? 'bg-info text-white border-info'
-                            : 'bg-white text-muted border-border hover:border-info hover:text-info'
-                        }`}>
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </Field>
               </div>
             ))}
           </div>
@@ -263,115 +410,77 @@ export default function NewRequest() {
         </Section>
 
         {/* Offer Details */}
-        <Section title="Offer Details">
+        <Section title={`Offer Details — ${offerType}`}>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Type of Offer" required>
-              <select className="input-field" required value={form.offer_type} onChange={e => set('offer_type', e.target.value)}>
-                <option value="">Select…</option>
-                {OFFER_TYPES.map(o => <option key={o}>{o}</option>)}
-              </select>
-            </Field>
             <Field label="Offline / Online">
               <select className="input-field" value={form.offline_online} onChange={e => set('offline_online', e.target.value)}>
                 <option value="">Select…</option>
                 {OFFLINE_ONLINE_OPTIONS.map(o => <option key={o}>{o}</option>)}
               </select>
             </Field>
+            <Field label="Promotion Name">
+              <input className="input-field" placeholder="e.g. November Offer"
+                value={form.promotion_name} onChange={e => set('promotion_name', e.target.value)} />
+            </Field>
           </div>
 
-          <Field label="Promotion Details" required hint="e.g. Flat 20% off on all SKUs / Buy 2 Get 15% off">
+          <Field label="Promotion Details" required hint={isPromo ? 'e.g. Flat 20% off on all SKUs' : 'e.g. New RSP ₹319 for Product X'}>
             <textarea className="input-field min-h-[80px] resize-y" required
-              placeholder="Flat 20% off on all SKUs"
+              placeholder={isPromo ? 'Flat 20% off on all SKUs' : 'New RSP ₹319 for Product X'}
               value={form.promo_details} onChange={e => set('promo_details', e.target.value)} />
           </Field>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Promotion Name">
-              <input className="input-field" placeholder="e.g. November Offer" value={form.promotion_name} onChange={e => set('promotion_name', e.target.value)} />
-            </Field>
-            <Field label="Assortment Type">
-              <select className="input-field" value={form.assortment_type} onChange={e => set('assortment_type', e.target.value)}>
-                <option value="">Select…</option>
-                {ASSORTMENT_TYPES.map(a => <option key={a}>{a}</option>)}
-              </select>
-            </Field>
-          </div>
+          <Field label="Assortment Type">
+            <select className="input-field" value={form.assortment_type} onChange={e => set('assortment_type', e.target.value)}>
+              <option value="">Select…</option>
+              {ASSORTMENT_TYPES.map(a => <option key={a}>{a}</option>)}
+            </select>
+          </Field>
 
-          {/* Discount % — changes based on Funded By */}
-          {form.funded_by && (
-            <div className="grid grid-cols-2 gap-4">
-              {!isBoth ? (
-                <>
-                  <Field label="Broadway Discount %">
-                    <input className="input-field" placeholder="e.g. 0%" value={form.broadway_discount_pct} onChange={e => set('broadway_discount_pct', e.target.value)} />
-                  </Field>
-                  <Field label="Brand Discount %">
-                    <input className="input-field" placeholder="e.g. 100%" value={form.brand_discount_pct} onChange={e => set('brand_discount_pct', e.target.value)} />
-                  </Field>
-                </>
-              ) : (
-                <>
-                  <Field label="Broadway Discount % (Both)">
-                    <input className="input-field" placeholder="e.g. 50%" value={form.broadway_discount_both} onChange={e => set('broadway_discount_both', e.target.value)} />
-                  </Field>
-                  <Field label="Brand Discount % (Both)">
-                    <input className="input-field" placeholder="e.g. 50%" value={form.brand_discount_both} onChange={e => set('brand_discount_both', e.target.value)} />
-                  </Field>
-                </>
-              )}
+          {/* Selected SKUs — Drive link + correct sample download */}
+          {isSelectedSKUs && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+              <p className="text-xs font-display font-semibold text-info">Selected SKUs — provide the SKU list</p>
+              <Field label="Google Sheets / Drive Link to SKU List" hint="Share with view access">
+                <input type="url" className="input-field" placeholder="https://docs.google.com/spreadsheets/…"
+                  value={form.sku_file_link} onChange={e => set('sku_file_link', e.target.value)} />
+              </Field>
+              <button type="button" onClick={isPromo ? downloadSamplePromo : downloadSampleRSP}
+                className="flex items-center gap-1.5 text-xs font-body text-info hover:underline">
+                <Download size={12} />
+                Download sample format
+                <span className="text-muted ml-1">
+                  {isPromo ? '(Barcode, SKU Name, Brand, MRP, Discount %, RSP)' : '(Barcode, SKU Name, Brand, MRP, RSP)'}
+                </span>
+              </button>
             </div>
           )}
         </Section>
 
         {/* Files & Approvals */}
         <Section title="Files & Approvals">
-          <Field label="Brand Approval Email Link" hint="Paste Google Drive link to the approval email screenshot">
-            <input type="url" className="input-field" placeholder="https://drive.google.com/…" value={form.approval_email} onChange={e => set('approval_email', e.target.value)} />
+          <Field label="Brand Approval Email (Drive Link)" hint="Paste Google Drive link to the approval email screenshot">
+            <input type="url" className="input-field" placeholder="https://drive.google.com/…"
+              value={form.approval_email} onChange={e => set('approval_email', e.target.value)} />
           </Field>
-          <Field label="Brand Approval Email (alternate)">
-            <input type="url" className="input-field" placeholder="https://drive.google.com/…" value={form.approval_email_alt} onChange={e => set('approval_email_alt', e.target.value)} />
-          </Field>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="RSP File (Drive link)" hint="For RSP Update promos">
-              <input type="url" className="input-field" placeholder="https://drive.google.com/…" value={form.rsp_file_link} onChange={e => set('rsp_file_link', e.target.value)} />
-            </Field>
-            <Field label="SKU / Barcode File (Drive link)" hint="Sheet with barcodes for this promo">
-              <input type="url" className="input-field" placeholder="https://drive.google.com/…" value={form.sku_file_link} onChange={e => set('sku_file_link', e.target.value)} />
-            </Field>
-          </div>
-        </Section>
 
-        {/* Status */}
-        <Section title="Status">
-          <p className="text-xs text-muted -mt-2">Set initial status. Your team can update these from the Board later.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Field label="Status">
-              <select className="input-field" value={form.status} onChange={e => set('status', e.target.value)}>
-                {STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
-              </select>
+          {isRSP && (
+            <Field label="RSP File (Drive Link)" hint="Upload RSP update sheet to Drive and paste the link">
+              <input type="url" className="input-field" placeholder="https://drive.google.com/…"
+                value={form.rsp_file_link} onChange={e => set('rsp_file_link', e.target.value)} />
             </Field>
-            <Field label="Current Status">
-              <select className="input-field" value={form.current_status} onChange={e => set('current_status', e.target.value)}>
-                {CURRENT_STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
-              </select>
+          )}
+
+          {isPromo && !isSelectedSKUs && (
+            <Field label="SKU / Barcode File (Drive Link)" hint="Upload barcode list to Drive and paste the link">
+              <input type="url" className="input-field" placeholder="https://drive.google.com/…"
+                value={form.sku_file_link} onChange={e => set('sku_file_link', e.target.value)} />
             </Field>
-            <Field label="Shopify Promo Status">
-              <select className="input-field" value={form.shopify_promo_status} onChange={e => set('shopify_promo_status', e.target.value)}>
-                <option value="">—</option>
-                {SHOPIFY_STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
-              </select>
-            </Field>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Ginesys Promo ID">
-              <input className="input-field" placeholder="e.g. 001-00038" value={form.ginesys_promo_id} onChange={e => set('ginesys_promo_id', e.target.value)} />
-            </Field>
-            <Field label="Shopify Discount ID">
-              <input className="input-field" placeholder="e.g. #456" value={form.shopify_discount_id} onChange={e => set('shopify_discount_id', e.target.value)} />
-            </Field>
-          </div>
+          )}
+
           <Field label="Remark">
-            <textarea className="input-field min-h-[60px] resize-y" placeholder="Any notes or flags…" value={form.remark} onChange={e => set('remark', e.target.value)} />
+            <textarea className="input-field min-h-[60px] resize-y" placeholder="Any notes or flags…"
+              value={form.remark} onChange={e => set('remark', e.target.value)} />
           </Field>
         </Section>
 
@@ -382,17 +491,38 @@ export default function NewRequest() {
         )}
 
         <div className="flex gap-3 pb-8">
-          <button type="submit" disabled={loading}
+          <button type="submit" disabled={loading || !!splitError}
             className="flex items-center gap-2 bg-accent text-white font-body font-medium px-6 py-2.5 rounded-lg hover:bg-orange-700 disabled:opacity-60 transition-colors text-sm">
             {loading && <Loader2 size={14} className="animate-spin" />}
             {loading ? 'Submitting…' : 'Submit Request'}
           </button>
-          <button type="button" onClick={() => navigate('/')}
+          <button type="button" onClick={() => setStep('offer-type')}
             className="bg-white border border-border text-ink font-body font-medium px-5 py-2.5 rounded-lg hover:bg-paper transition-colors text-sm">
             Cancel
           </button>
         </div>
       </form>
+    </div>
+  )
+}
+
+// ─── Reusable choice card ─────────────────────────────────────────────────────
+function ChoiceCard({ icon, iconBg, title, desc, onClick, sample }) {
+  return (
+    <div className="bg-white border-2 border-border hover:border-accent rounded-xl p-6 transition-all group flex flex-col">
+      <button onClick={onClick} className="text-left flex-1">
+        <div className={`w-10 h-10 ${iconBg} rounded-lg flex items-center justify-center mb-4 transition-colors`}>
+          {icon}
+        </div>
+        <p className="font-display font-bold text-base text-ink mb-1">{title}</p>
+        <p className="text-xs font-body text-muted">{desc}</p>
+      </button>
+      {sample && (
+        <button type="button" onClick={e => { e.stopPropagation(); sample.fn() }}
+          className="mt-4 flex items-center gap-1.5 text-[11px] font-body text-muted hover:text-ink transition-colors pt-3 border-t border-border">
+          <Download size={11} /> {sample.label}
+        </button>
+      )}
     </div>
   )
 }
