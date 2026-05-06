@@ -6,7 +6,7 @@ import {
   ASSORTMENT_TYPES, OFFLINE_ONLINE_OPTIONS,
   STATUS_OPTIONS, CURRENT_STATUS_OPTIONS, SHOPIFY_STATUS_OPTIONS,
   todayISO,
-} from '../lib/constants'
+} from '../lib/constants.jsx'
 import { Section, Field, StoreToggle } from '../components/FormParts'
 import {
   CheckCircle, AlertCircle, Loader2, Plus, Trash2,

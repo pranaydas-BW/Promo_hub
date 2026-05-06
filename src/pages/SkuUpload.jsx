@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { exportCSV, STORE_OPTIONS, fmtDate } from '../lib/constants'
+import { exportCSV, STORE_OPTIONS, fmtDate } from '../lib/constants.jsx'
 import * as XLSX from 'xlsx'
 import {
   Download, Upload, Loader2, CheckCircle, AlertCircle,

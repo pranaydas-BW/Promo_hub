@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { StatusBadge, CurrentStatusDot, exportCSV, fmtDate, todayISO } from '../lib/constants'
+import { StatusBadge, CurrentStatusDot, exportCSV, fmtDate, todayISO } from '../lib/constants.jsx'
 import { Download, RefreshCw, CalendarCheck, CalendarX, ExternalLink, Loader2 } from 'lucide-react'
 
 export default function TodayPromos() {
