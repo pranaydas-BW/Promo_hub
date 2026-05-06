@@ -471,20 +471,6 @@ export default function NewRequest() {
             </Field>
           )}
 
-          {isPromo && !isSelectedSKUs && (
-            <Field label="SKU / Barcode File (Drive Link)" hint="Upload barcode list to Drive and paste the link">
-              <input type="url" className="input-field" placeholder="https://drive.google.com/…"
-                value={form.sku_file_link} onChange={e => set('sku_file_link', e.target.value)} />
-            </Field>
-          )}
-
-          <Field label="Remark">
-            <textarea className="input-field min-h-[60px] resize-y" placeholder="Any notes or flags…"
-              value={form.remark} onChange={e => set('remark', e.target.value)} />
-          </Field>
-        </Section>
-
-        {error && (
           <div className="flex items-center gap-2 text-danger text-sm bg-red-50 border border-red-200 rounded-lg px-4 py-3">
             <AlertCircle size={15} /> {error}
           </div>
