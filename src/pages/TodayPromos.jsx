@@ -92,9 +92,9 @@ export default function TodayPromos() {
         <div className="flex gap-1.5">
           {STORES.map(s => (
             <button key={s} onClick={() => setStore(s)}
-              className={\`px-3 py-1.5 rounded-lg text-xs font-body border transition-colors \${
+              className={`px-3 py-1.5 rounded-lg text-xs font-body border transition-colors ${
                 store === s ? 'bg-ink text-white border-ink' : 'bg-white text-muted border-border hover:text-ink hover:border-ink'
-              }\`}>
+              }`}>
               {s}
             </button>
           ))}
@@ -110,15 +110,15 @@ export default function TodayPromos() {
           <div>
             <p className="font-display font-bold text-lg text-ink mb-3">Today - <span className="text-muted font-normal text-base">{fmtDate(today)}</span></p>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <PromoGroup title="Starting Today" icon={<CalendarCheck size={15} className="text-success" />} color="text-success" bg="bg-emerald-50" border="border-emerald-200" rows={startingToday} event="starting" matchDate={today} onExport={() => exportCSV(toExport(startingToday), \`starting-today-\${today}.csv\`)} onPick={handlePick} />
-              <PromoGroup title="Ending Today" icon={<CalendarX size={15} className="text-danger" />} color="text-danger" bg="bg-red-50" border="border-red-200" rows={endingToday} event="ending" matchDate={today} onExport={() => exportCSV(toExport(endingToday), \`ending-today-\${today}.csv\`)} onPick={handlePick} />
+              <PromoGroup title="Starting Today" icon={<CalendarCheck size={15} className="text-success" />} color="text-success" bg="bg-emerald-50" border="border-emerald-200" rows={startingToday} event="starting" matchDate={today} onExport={() => exportCSV(toExport(startingToday), `starting-today-${today}.csv`)} onPick={handlePick} />
+              <PromoGroup title="Ending Today" icon={<CalendarX size={15} className="text-danger" />} color="text-danger" bg="bg-red-50" border="border-red-200" rows={endingToday} event="ending" matchDate={today} onExport={() => exportCSV(toExport(endingToday), `ending-today-${today}.csv`)} onPick={handlePick} />
             </div>
           </div>
           <div>
             <p className="font-display font-bold text-lg text-ink mb-3">Tomorrow - <span className="text-muted font-normal text-base">{fmtDate(tomorrow)}</span></p>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <PromoGroup title="Starting Tomorrow" icon={<CalendarCheck size={15} className="text-info" />} color="text-info" bg="bg-blue-50" border="border-blue-200" rows={startingTomorrow} event="starting" matchDate={tomorrow} onExport={() => exportCSV(toExport(startingTomorrow), \`starting-tomorrow-\${today}.csv\`)} onPick={handlePick} />
-              <PromoGroup title="Ending Tomorrow" icon={<CalendarX size={15} className="text-warning" />} color="text-warning" bg="bg-amber-50" border="border-amber-200" rows={endingTomorrow} event="ending" matchDate={tomorrow} onExport={() => exportCSV(toExport(endingTomorrow), \`ending-tomorrow-\${today}.csv\`)} onPick={handlePick} />
+              <PromoGroup title="Starting Tomorrow" icon={<CalendarCheck size={15} className="text-info" />} color="text-info" bg="bg-blue-50" border="border-blue-200" rows={startingTomorrow} event="starting" matchDate={tomorrow} onExport={() => exportCSV(toExport(startingTomorrow), `starting-tomorrow-${today}.csv`)} onPick={handlePick} />
+              <PromoGroup title="Ending Tomorrow" icon={<CalendarX size={15} className="text-warning" />} color="text-warning" bg="bg-amber-50" border="border-amber-200" rows={endingTomorrow} event="ending" matchDate={tomorrow} onExport={() => exportCSV(toExport(endingTomorrow), `ending-tomorrow-${today}.csv`)} onPick={handlePick} />
             </div>
           </div>
         </div>
@@ -130,14 +130,14 @@ export default function TodayPromos() {
 function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, onExport, onPick }) {
   return (
     <div className="bg-white border border-border rounded-xl overflow-hidden">
-      <div className={\`flex items-center justify-between px-4 py-3 \${bg} border-b \${border}\`}>
+      <div className={`flex items-center justify-between px-4 py-3 ${bg} border-b ${border}`}>
         <div className="flex items-center gap-1.5">
           {icon}
-          <span className={\`font-display font-semibold text-sm \${color}\`}>{title}</span>
+          <span className={`font-display font-semibold text-sm ${color}`}>{title}</span>
           <span className="font-mono text-xs text-muted">({rows.length})</span>
         </div>
         {rows.length > 0 && (
-          <button onClick={onExport} className={\`flex items-center gap-1 text-[11px] font-body font-medium px-2 py-1 rounded border \${bg} \${border} \${color} hover:opacity-70\`}>
+          <button onClick={onExport} className={`flex items-center gap-1 text-[11px] font-body font-medium px-2 py-1 rounded border ${bg} ${border} ${color} hover:opacity-70`}>
             <Download size={10} /> CSV
           </button>
         )}
@@ -159,7 +159,7 @@ function PromoCard({ row: r, event, matchDate, color, onPick }) {
   const relevantRanges = (r.date_ranges || []).filter(dr => event === 'starting' ? dr.from === matchDate : dr.till === matchDate)
 
   return (
-    <div className={\`p-4 \${isNewPromo && !isPicked ? 'border-l-4 border-l-accent bg-orange-50/30' : isPicked ? 'bg-gray-50 opacity-70' : ''}\`}>
+    <div className={`p-4 ${isNewPromo && !isPicked ? 'border-l-4 border-l-accent bg-orange-50/30' : isPicked ? 'bg-gray-50 opacity-70' : ''}`}>
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="font-mono text-[11px] text-muted">{r.promo_request_id}</span>
@@ -168,21 +168,21 @@ function PromoCard({ row: r, event, matchDate, color, onPick }) {
           <CurrentStatusDot status={r.current_status} />
         </div>
         <button onClick={() => onPick(r)}
-          className={\`flex items-center gap-1.5 text-[11px] font-body px-2 py-1 rounded-lg border transition-colors shrink-0 \${isPicked ? 'bg-emerald-50 text-success border-emerald-200' : 'bg-white text-muted border-border hover:border-ink hover:text-ink'}\`}>
+          className={`flex items-center gap-1.5 text-[11px] font-body px-2 py-1 rounded-lg border transition-colors shrink-0 ${isPicked ? 'bg-emerald-50 text-success border-emerald-200' : 'bg-white text-muted border-border hover:border-ink hover:text-ink'}`}>
           <span>{isPicked ? 'checkmark' : 'circle'}</span>
           <span>{isPicked ? 'Picked' : 'Pick'}</span>
         </button>
       </div>
       <p className="font-display font-bold text-sm text-ink">{r.brand_names}</p>
-      <p className="text-[11px] text-muted mt-0.5">{r.category}{r.store ? \` · \${r.store}\` : ''} · {r.poc_name}</p>
+      <p className="text-[11px] text-muted mt-0.5">{r.category}{r.store ? ` · ${r.store}` : ''} · {r.poc_name}</p>
       <p className="text-xs font-body text-ink mt-1.5 line-clamp-2">{r.promo_details}</p>
       {relevantRanges.map((dr, i) => (
-        <p key={i} className={\`text-[11px] font-mono mt-2 \${color}\`}>
+        <p key={i} className={`text-[11px] font-mono mt-2 ${color}`}>
           {event === 'starting' ? 'starts' : 'ends'} {fmtDate(matchDate)} (full: {fmtDate(dr.from)} to {fmtDate(dr.till)})
         </p>
       ))}
       {isPicked && (
-        <p className="text-[11px] text-muted mt-1.5">Picked by <span className="font-medium text-ink">{r.picked_by?.split('@')[0]}</span>{r.picked_at && \` at \${new Date(r.picked_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}\`}</p>
+        <p className="text-[11px] text-muted mt-1.5">Picked by <span className="font-medium text-ink">{r.picked_by?.split('@')[0]}</span>{r.picked_at && ` at ${new Date(r.picked_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`}</p>
       )}
       <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] text-muted">
         {r.offer_type && <span className="font-medium text-ink">{r.offer_type}</span>}
