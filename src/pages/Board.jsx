@@ -5,10 +5,12 @@ import {
   StatusBadge, CurrentStatusDot,
   STATUS_OPTIONS, CURRENT_STATUS_OPTIONS, SHOPIFY_STATUS_OPTIONS,
   CATEGORIES, STATUS_STYLES, fmtDate,
-} from '../lib/constants.jsx'
+} from '../lib/constants'
 import { Search, RefreshCw, Plus, ChevronDown, ExternalLink, Loader2, Filter } from 'lucide-react'
+import { useAuth } from '../lib/AuthContext'
 
 export default function Board() {
+  const { isAdmin } = useAuth()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -117,7 +119,8 @@ export default function Board() {
             <PromoRow key={r.id} row={r}
               expanded={expandedId === r.id}
               onToggle={() => setExpandedId(expandedId === r.id ? null : r.id)}
-              onPatch={patch} updating={updatingId === r.id} />
+              onPatch={patch} updating={updatingId === r.id}
+              isAdmin={isAdmin} />
           ))}
         </div>
       )}
@@ -125,7 +128,7 @@ export default function Board() {
   )
 }
 
-function PromoRow({ row: r, expanded, onToggle, onPatch, updating }) {
+function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin }) {
   const ranges = Array.isArray(r.date_ranges) ? r.date_ranges : []
   const first = ranges[0] || {}
 
@@ -213,7 +216,8 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating }) {
             </div>
           )}
 
-          {/* Status update */}
+          {/* Status update — admin only */}
+          {isAdmin && (
           <div className="bg-paper rounded-lg p-3 border border-border space-y-3">
             <p className="text-[11px] font-mono uppercase tracking-widest text-muted">Update Status</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -234,6 +238,7 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating }) {
             </div>
             {updating && <p className="text-[11px] text-muted flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> Saving…</p>}
           </div>
+          )}
         </div>
       )}
     </div>
