@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import {
@@ -218,26 +219,7 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin }) {
 
           {/* Status update — admin only */}
           {isAdmin && (
-          <div className="bg-paper rounded-lg p-3 border border-border space-y-3">
-            <p className="text-[11px] font-mono uppercase tracking-widest text-muted">Update Status</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {[
-                ['Status', 'status', STATUS_OPTIONS],
-                ['Current Status', 'current_status', CURRENT_STATUS_OPTIONS],
-                ['Shopify Promo Status', 'shopify_promo_status', ['', ...SHOPIFY_STATUS_OPTIONS]],
-              ].map(([label, key, opts]) => (
-                <div key={key}>
-                  <label className="text-[10px] font-mono uppercase text-muted mb-1 block">{label}</label>
-                  <select disabled={updating} value={r[key] || ''}
-                    onChange={e => onPatch(r.id, { [key]: e.target.value })}
-                    className="w-full bg-white border border-border rounded-lg px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-50">
-                    {opts.map(s => <option key={s} value={s}>{s || '—'}</option>)}
-                  </select>
-                </div>
-              ))}
-            </div>
-            {updating && <p className="text-[11px] text-muted flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> Saving…</p>}
-          </div>
+            <StatusPanel row={r} onPatch={onPatch} updating={updating} />
           )}
         </div>
       )}
@@ -251,5 +233,86 @@ function ELink({ href, label }) {
       className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
       <ExternalLink size={11} /> {label}
     </a>
+  )
+}
+
+function StatusPanel({ row: r, onPatch, updating }) {
+  const [draft, setDraft] = useState({
+    status: r.status || '',
+    current_status: r.current_status || '',
+    shopify_promo_status: r.shopify_promo_status || '',
+  })
+  const [saved, setSaved] = useState(false)
+
+  // Check if anything changed from the original
+  const isDirty =
+    draft.status !== (r.status || '') ||
+    draft.current_status !== (r.current_status || '') ||
+    draft.shopify_promo_status !== (r.shopify_promo_status || '')
+
+  const handleSave = async () => {
+    await onPatch(r.id, draft)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleReset = () => {
+    setDraft({
+      status: r.status || '',
+      current_status: r.current_status || '',
+      shopify_promo_status: r.shopify_promo_status || '',
+    })
+  }
+
+  return (
+    <div className="bg-paper rounded-lg p-3 border border-border space-y-3">
+      <p className="text-[11px] font-mono uppercase tracking-widest text-muted">Update Status</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {[
+          ['Status', 'status', STATUS_OPTIONS],
+          ['Current Status', 'current_status', CURRENT_STATUS_OPTIONS],
+          ['Shopify Promo Status', 'shopify_promo_status', ['', ...SHOPIFY_STATUS_OPTIONS]],
+        ].map(([label, key, opts]) => (
+          <div key={key}>
+            <label className="text-[10px] font-mono uppercase text-muted mb-1 block">{label}</label>
+            <select
+              disabled={updating}
+              value={draft[key]}
+              onChange={e => setDraft(d => ({ ...d, [key]: e.target.value }))}
+              className={`w-full bg-white border rounded-lg px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-50 transition-colors ${
+                draft[key] !== (r[key] || '') ? 'border-accent' : 'border-border'
+              }`}>
+              {opts.map(s => <option key={s} value={s}>{s || '—'}</option>)}
+            </select>
+          </div>
+        ))}
+      </div>
+
+      {/* Action buttons — only show if something changed */}
+      <div className="flex items-center gap-2 pt-1">
+        {isDirty && (
+          <>
+            <button
+              onClick={handleSave}
+              disabled={updating}
+              className="flex items-center gap-1.5 bg-accent text-white text-xs font-body px-3 py-1.5 rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors">
+              {updating ? <Loader2 size={11} className="animate-spin" /> : null}
+              {updating ? 'Saving…' : 'Save Changes'}
+            </button>
+            <button
+              onClick={handleReset}
+              disabled={updating}
+              className="text-xs font-body text-muted hover:text-ink transition-colors">
+              Reset
+            </button>
+          </>
+        )}
+        {saved && !isDirty && (
+          <p className="text-[11px] text-success flex items-center gap-1">
+            ✓ Saved successfully
+          </p>
+        )}
+      </div>
+    </div>
   )
 }
