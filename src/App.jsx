@@ -8,6 +8,7 @@ import PromoCalendar from './pages/PromoCalendar'
 import Analytics from './pages/Analytics'
 import SkuUpload from './pages/SkuUpload'
 import AdminPage from './pages/AdminPage'
+import BrandDatabase from './pages/BrandDatabase'
 import { Loader2 } from 'lucide-react'
 
 function AppRoutes() {
@@ -30,6 +31,7 @@ function AppRoutes() {
           <Route path="/"          element={<Board />} />
           <Route path="/new"       element={<NewRequest />} />
           <Route path="/today"     element={<PromoCalendar />} />
+          <Route path="/brands"    element={<BrandDatabase />} />
           <Route path="/skus"      element={<SkuUpload />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/admin"     element={<AdminPage />} />

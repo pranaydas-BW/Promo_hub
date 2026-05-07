@@ -1,11 +1,12 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Tag, LayoutDashboard, PlusCircle, BarChart2, CalendarClock, Barcode, ShieldCheck, LogOut } from 'lucide-react'
+import { Tag, LayoutDashboard, PlusCircle, BarChart2, CalendarClock, Barcode, ShieldCheck, LogOut, BookMarked } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 
 const links = [
   { to: '/',          label: 'Board',       icon: LayoutDashboard },
   { to: '/new',       label: 'New Request', icon: PlusCircle },
   { to: '/today',     label: "Today's",     icon: CalendarClock },
+  { to: '/brands',    label: 'Brands',      icon: BookMarked },
   { to: '/skus',      label: 'SKUs',        icon: Barcode, adminOnly: true },
   { to: '/analytics', label: 'Analytics',   icon: BarChart2 },
 ]
@@ -42,7 +43,6 @@ export default function Navbar() {
             )
           })}
 
-          {/* Admin link */}
           {isAdmin && (
             <Link to="/admin"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-body font-medium whitespace-nowrap transition-colors ${
@@ -54,7 +54,6 @@ export default function Navbar() {
           )}
         </nav>
 
-        {/* User info + sign out */}
         <div className="flex items-center gap-2 ml-2 shrink-0">
           <div className="hidden md:flex items-center gap-2">
             {user?.user_metadata?.avatar_url && (
