@@ -12,15 +12,15 @@ import {
 } from 'lucide-react'
 
 const CATEGORIES = [
-  'Footwear',
-  'Fashion (Fashion Accessories, Clothing, Jewellery)',
-  'Beauty and Personal Care',
-  'Luggage and Bags',
-  'Others',
-  'Gifting',
+  'Beauty & Personal Care',
+  'Clothing',
   'Electronics',
-  'Kids',
-  'Home',
+  'Footwear',
+  'Gifting',
+  'Health & Wellness',
+  'Lifestyle',
+  'Luggage',
+  'Streetwear',
 ]
 
 const BLANK_RANGE = { from: '', till: '' }
