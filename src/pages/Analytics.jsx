@@ -395,7 +395,6 @@ Keep it concise and actionable. Use bullet points.`
                     </button>
                   ))}
                 </div>
-              </div>
                 <button onClick={() => exportCSV(
                   brandMonthTable.map(r => ({
                     brand: r.brand,
