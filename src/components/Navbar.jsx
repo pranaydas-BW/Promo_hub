@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Tag, LayoutDashboard, PlusCircle, BarChart2, CalendarClock, Barcode, ShieldCheck, LogOut, BookMarked } from 'lucide-react'
+import { Tag, LayoutDashboard, PlusCircle, BarChart2, CalendarClock, ShieldCheck, LogOut, BookMarked } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 
 const links = [
@@ -7,7 +7,6 @@ const links = [
   { to: '/new',       label: 'New Request', icon: PlusCircle },
   { to: '/today',     label: "Today's",     icon: CalendarClock },
   { to: '/brands',    label: 'Brands',      icon: BookMarked },
-  { to: '/skus',      label: 'SKUs',        icon: Barcode, adminOnly: true },
   { to: '/analytics', label: 'Analytics',   icon: BarChart2 },
 ]
 

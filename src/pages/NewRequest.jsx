@@ -55,18 +55,18 @@ const BLANK_FORM = {
 // ─── Sample downloads ─────────────────────────────────────────────────────────
 function downloadSamplePromo() {
   const csv = [
-    'Barcode,SKU Name,Brand Name,MRP,Discount %,RSP',
-    '8901234567890,Product Name 250ml,Brand Name,399,20,319',
-    '8901234567891,Another Product 100g,Brand Name,199,15,169',
+    'Barcode,Brand Name,MRP,Discount %',
+    '8901234567890,Brand Name,399,20',
+    '8901234567891,Brand Name,199,15',
   ].join('\n')
   trigger(csv, 'sample-promotion-skus.csv')
 }
 
 function downloadSampleRSP() {
   const csv = [
-    'Barcode,SKU Name,Brand Name,MRP,RSP',
-    '8901234567890,Product Name 250ml,Brand Name,399,319',
-    '8901234567891,Another Product 100g,Brand Name,199,169',
+    'Barcode,Brand Name,MRP,RSP',
+    '8901234567890,Brand Name,399,319',
+    '8901234567891,Brand Name,199,169',
   ].join('\n')
   trigger(csv, 'sample-rsp-update-skus.csv')
 }
@@ -452,13 +452,13 @@ export default function NewRequest() {
         {/* Offer Details */}
         <Section title={`Offer Details — ${offerType}`}>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Offline / Online">
+            <Field label="Offline / Online" required>
               <select className="input-field" value={form.offline_online} onChange={e => set('offline_online', e.target.value)}>
                 <option value="">Select…</option>
                 {OFFLINE_ONLINE_OPTIONS.map(o => <option key={o}>{o}</option>)}
               </select>
             </Field>
-            <Field label="Promotion Name">
+            <Field label="Promotion Name" required>
               <input className="input-field" placeholder="e.g. November Offer"
                 value={form.promotion_name} onChange={e => set('promotion_name', e.target.value)} />
             </Field>
@@ -470,7 +470,7 @@ export default function NewRequest() {
               value={form.promo_details} onChange={e => set('promo_details', e.target.value)} />
           </Field>
 
-          <Field label="Assortment Type">
+          <Field label="Assortment Type" required>
             <select className="input-field" value={form.assortment_type} onChange={e => set('assortment_type', e.target.value)}>
               <option value="">Select…</option>
               {ASSORTMENT_TYPES.map(a => <option key={a}>{a}</option>)}
