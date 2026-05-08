@@ -75,8 +75,8 @@ export default function Analytics() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from('historical_promos').select('*'),
-      supabase.from('promo_requests').select('*'),
+      supabase.from('historical_promos').select('*').limit(20000),
+      supabase.from('promo_requests').select('*').limit(5000),
     ]).then(([{ data: h }, { data: c }]) => {
       setHistorical(h || [])
       setCurrent(c || [])
