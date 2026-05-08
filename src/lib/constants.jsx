@@ -1,16 +1,15 @@
 // ─── Dropdown options (matching your real sheet values) ───────────────────────
 
 export const CATEGORIES = [
-  'Beauty and Personal Care',
-  'Fashion (Fashion Accessories, Clothing, Jewellery)',
-  'Footwear',
-  'Health and Wellness',
-  'Luggage and Bags',
-  'Gifting',
+  'Beauty & Personal Care',
+  'Clothing',
   'Electronics',
-  'Kids',
-  'Home',
-  'Others',
+  'Footwear',
+  'Gifting',
+  'Health & Wellness',
+  'Lifestyle',
+  'Luggage',
+  'Streetwear',
 ]
 
 export const STORE_OPTIONS = ['VK, Delhi', 'BH, Hyderabad', 'Pune']
