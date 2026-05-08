@@ -69,6 +69,7 @@ export default function Analytics() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('weekly')
   const [catFilter, setCatFilter] = useState('All Categories')
+  const [monthFilter, setMonthFilter] = useState(6)
   const [aiInsight, setAiInsight] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const today = todayISO()
@@ -153,7 +154,7 @@ export default function Analytics() {
 
   // ── Table 2: Brand × Month offer details ─────────────────────────────────
   const last6Months = []
-  for (let i = 5; i >= 0; i--) {
+  for (let i = monthFilter - 1; i >= 0; i--) {
     const d = new Date()
     d.setMonth(d.getMonth() - i)
     last6Months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
@@ -374,11 +375,27 @@ Keep it concise and actionable. Use bullet points.`
           {/* Table 2: Brand × Month */}
           {tab === 'monthly' && (
             <div>
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
                 <h2 className="font-display font-bold text-xl text-ink">
-                  Brand Promo Details — Last 6 Months
+                  Brand Promo Details
                   <span className="text-sm font-normal text-muted ml-2">({brandMonthTable.length} brands)</span>
                 </h2>
+                <div className="flex gap-1.5">
+                  {[
+                    { label: 'Current Month', val: 1 },
+                    { label: 'Last 2 Months', val: 2 },
+                    { label: 'Last 3 Months', val: 3 },
+                    { label: 'Last 6 Months', val: 6 },
+                  ].map(({ label, val }) => (
+                    <button key={val} onClick={() => setMonthFilter(val)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-body border transition-colors ${
+                        monthFilter === val ? 'bg-ink text-white border-ink' : 'bg-white text-muted border-border hover:text-ink hover:border-ink'
+                      }`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
                 <button onClick={() => exportCSV(
                   brandMonthTable.map(r => ({
                     brand: r.brand,
