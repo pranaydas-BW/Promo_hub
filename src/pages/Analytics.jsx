@@ -413,7 +413,7 @@ Keep it concise and actionable. Use bullet points.`
                 <button onClick={() => exportCSV(
                   brandMonthTable.map(r => ({
                     brand: r.brand,
-                    ...last6Months.reduce((a, m) => ({ ...a, [fmtMonth(m)]: (r.months[m] || []).join(' | ') }), {})
+                    ...last6Months.reduce((acc2, m) => ({ ...acc2, [fmtMonth(m)]: (r.months[m] || []).join(' | ') }), {})
                   })),
                   'brand-monthly.csv'
                 )} className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
