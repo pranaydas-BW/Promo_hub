@@ -91,6 +91,9 @@ export default function Board() {
                 shopify_discount_id: r.shopify_discount_id || '',
                 picked_by: r.picked_by || '',
                 remark: r.remark || '',
+                sku_file: r.sku_file_name || r.sku_file_link || '',
+                rsp_file: r.rsp_file_name || r.rsp_file_link || '',
+                approval_file: r.approval_file_name || r.approval_email || '',
               }))
               exportCSV(toExport, `promo-board-export-${new Date().toISOString().split('T')[0]}.csv`)
             }}
