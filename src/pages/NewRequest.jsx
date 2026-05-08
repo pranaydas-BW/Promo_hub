@@ -163,6 +163,15 @@ function StepReplicate({ onFound, onBack }) {
       store: Array.isArray(rest.store) ? rest.store : (rest.store || '').split(',').map(s => s.trim()).filter(Boolean),
       date_ranges: [{ ...BLANK_RANGE }],
       status: 'Pending', current_status: 'Not Live',
+      // Always clear file uploads — fresh entry needs fresh files
+      approval_email: '',
+      approval_file_name: '',
+      sku_file_link: '',
+      sku_file_name: '',
+      sku_file_data: '',
+      rsp_file_link: '',
+      rsp_file_name: '',
+      rsp_file_data: '',
     }, promo_request_id, rest.offer_type)
   }, [dupeId, onFound])
 

@@ -205,10 +205,22 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin }) {
 
           {/* Links */}
           <div className="flex flex-wrap gap-4">
-            {r.approval_email && <ELink href={r.approval_email} label="Approval Email" />}
-            {r.approval_email_alt && <ELink href={r.approval_email_alt} label="Approval (alt)" />}
-            {r.rsp_file_link && <ELink href={r.rsp_file_link} label="RSP File" />}
-            {r.sku_file_link && <ELink href={r.sku_file_link} label="SKU / Barcode File" />}
+          {/* Approval screenshot */}
+          {r.approval_email && (
+            <div>
+              <p className="text-[10px] font-mono uppercase tracking-widest text-muted mb-1.5">Brand Approval</p>
+              {r.approval_email.match(/\.(jpg|jpeg|png|webp)$/i) ? (
+                <a href={r.approval_email} target="_blank" rel="noreferrer">
+                  <img src={r.approval_email} alt="Approval screenshot"
+                    className="max-h-48 rounded-lg border border-border object-contain hover:opacity-80 transition-opacity" />
+                </a>
+              ) : (
+                <ELink href={r.approval_email} label={r.approval_file_name || 'View Approval'} />
+              )}
+            </div>
+          )}
+          {r.rsp_file_link && <ELink href={r.rsp_file_link} label="RSP File" />}
+          {r.sku_file_link && <ELink href={r.sku_file_link} label="SKU / Barcode File" />}
           </div>
 
           {r.remark && (
