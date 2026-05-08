@@ -14,11 +14,22 @@ const CATEGORIES = [
   'Lifestyle',
   'Luggage',
   'Streetwear',
-  'Beauty and Personal Care',
-  'Fashion (Fashion Accessories, Clothing, Jewellery)',
-  'Health and Wellness',
-  'Luggage and Bags',
 ]
+
+// Map old category names to new ones
+const CAT_MAP = {
+  'Beauty and Personal Care': 'Beauty & Personal Care',
+  'Fashion (Fashion Accessories, Clothing, Jewellery)': 'Clothing',
+  'Health and Wellness': 'Health & Wellness',
+  'Luggage and Bags': 'Luggage',
+  'Others': 'Lifestyle',
+  'Kids': 'Lifestyle',
+  'Home': 'Lifestyle',
+}
+
+function normalizeCategory(cat) {
+  return CAT_MAP[cat] || cat
+}
 
 function getWeekLabel(dateStr) {
   const d = new Date(dateStr)
@@ -77,7 +88,7 @@ export default function Analytics() {
   const allPromos = [
     ...historical.map(r => ({
       brand: r.brand_names || '',
-      category: r.category || '',
+      category: normalizeCategory(r.category || ''),
       from: r.valid_from,
       till: r.valid_till,
       details: r.promotion_details || r.promotion_name || '',
@@ -87,7 +98,7 @@ export default function Analytics() {
       const ranges = Array.isArray(r.date_ranges) ? r.date_ranges : []
       return ranges.map(dr => ({
         brand: r.brand_names || '',
-        category: r.category || '',
+        category: normalizeCategory(r.category || ''),
         from: dr.from,
         till: dr.till,
         details: r.promo_details || r.promotion_name || '',
