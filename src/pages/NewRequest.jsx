@@ -496,7 +496,7 @@ export default function NewRequest() {
 
         {/* Files & Approvals */}
         <Section title="Files & Approvals">
-          <Field label="Brand Approval Screenshot" hint="Upload a screenshot of the brand approval email (JPG, PNG, PDF)">
+          <Field label="Brand Approval Screenshot" required hint="Upload a screenshot of the brand approval email (JPG, PNG, PDF)">
             <ApprovalUpload
               value={form.approval_file_name}
               url={form.approval_email}
