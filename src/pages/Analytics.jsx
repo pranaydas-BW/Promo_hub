@@ -261,6 +261,7 @@ Keep it concise and actionable. Use bullet points.`
     { id: 'monthly', label: 'Brand × Month' },
     { id: 'dropped', label: 'Critical Brands' },
 
+    { id: 'ending', label: '⏰ Ending Soon' },
     { id: 'ai', label: '✨ AI Insights' },
   ]
 
@@ -499,6 +500,64 @@ Keep it concise and actionable. Use bullet points.`
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+
+          {/* Ending Soon */}
+          {tab === 'ending' && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h2 className="font-display font-bold text-xl text-ink flex items-center gap-2">
+                    ⏰ Promos Ending in Next 7 Days
+                  </h2>
+                  <p className="text-sm text-muted mt-1">{endingSoonList.length} promos ending between today and {fmtDate(in7DaysStr)}</p>
+                </div>
+                <button onClick={() => exportCSV(endingSoonList.map(r => ({...r, details: r.details.join(' | ')})), 'ending-soon.csv')}
+                  className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
+                  <Download size={12} /> Export
+                </button>
+              </div>
+              {endingSoonList.length === 0 ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl py-12 text-center">
+                  <p className="text-success font-body">No promos ending in the next 7 days.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-border bg-white">
+                  <table className="min-w-full text-sm font-body">
+                    <thead className="bg-paper border-b border-border">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Brand</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Category</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Ends On</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Offer Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {endingSoonList.map((r, i) => {
+                        const daysLeft = Math.ceil((new Date(r.till) - new Date(today)) / 86400000)
+                        return (
+                          <tr key={i} className={`border-b border-border last:border-0 hover:bg-paper/40 ${daysLeft <= 2 ? 'bg-red-50/30' : daysLeft <= 4 ? 'bg-amber-50/30' : ''}`}>
+                            <td className="px-4 py-3 font-medium text-ink">{r.brand}</td>
+                            <td className="px-4 py-3 text-muted">{r.category}</td>
+                            <td className="px-4 py-3">
+                              <span className={`font-mono text-xs font-bold ${daysLeft <= 2 ? 'text-danger' : daysLeft <= 4 ? 'text-warning' : 'text-ink'}`}>
+                                {fmtDate(r.till)}
+                              </span>
+                              <span className="text-[11px] text-muted ml-1.5">
+                                {daysLeft === 0 ? '(today)' : daysLeft === 1 ? '(tomorrow)' : `(${daysLeft}d)`}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-xs text-muted max-w-[250px]">
+                              {r.details.slice(0, 2).join(' · ')}{r.details.length > 2 ? ` +${r.details.length - 2} more` : ''}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
