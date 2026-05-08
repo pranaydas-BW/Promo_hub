@@ -70,7 +70,7 @@ export default function Analytics() {
   const [tab, setTab] = useState('weekly')
   const [catFilter, setCatFilter] = useState('All Categories')
   const [monthFilter, setMonthFilter] = useState(6)
-  const [selectedDay, setSelectedDay] = useState(today)
+  const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split('T')[0])
   const [aiInsight, setAiInsight] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const today = todayISO()
