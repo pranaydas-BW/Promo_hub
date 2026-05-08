@@ -126,7 +126,7 @@ function StepOfferType({ onChoose, onBack }) {
           title="Promotion"
           desc={<>% discount on SKUs.<br />e.g. Flat 20% off, Buy 2 Get 15% off</>}
           onClick={() => onChoose('Promotion')}
-          sample={{ label: 'Sample format: Barcode, SKU Name, Brand, MRP, Discount %, RSP', fn: downloadSamplePromo }}
+          sample={{ label: 'Sample format: Barcode, Brand Name, MRP, Discount %', fn: downloadSamplePromo }}
         />
         <ChoiceCard
           icon={<Tag size={20} className="text-success" />}
@@ -134,7 +134,7 @@ function StepOfferType({ onChoose, onBack }) {
           title="RSP Update"
           desc={<>Fixed selling price update.<br />e.g. New RSP ₹319 instead of ₹399</>}
           onClick={() => onChoose('RSP Update')}
-          sample={{ label: 'Sample format: Barcode, SKU Name, Brand, MRP, RSP', fn: downloadSampleRSP }}
+          sample={{ label: 'Sample format: Barcode, Brand Name, MRP, RSP', fn: downloadSampleRSP }}
         />
       </div>
     </div>
@@ -452,13 +452,13 @@ export default function NewRequest() {
         {/* Offer Details */}
         <Section title={`Offer Details — ${offerType}`}>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Offline / Online" required>
+            <Field label="Offline / Online">
               <select className="input-field" value={form.offline_online} onChange={e => set('offline_online', e.target.value)}>
                 <option value="">Select…</option>
                 {OFFLINE_ONLINE_OPTIONS.map(o => <option key={o}>{o}</option>)}
               </select>
             </Field>
-            <Field label="Promotion Name" required>
+            <Field label="Promotion Name">
               <input className="input-field" placeholder="e.g. November Offer"
                 value={form.promotion_name} onChange={e => set('promotion_name', e.target.value)} />
             </Field>
