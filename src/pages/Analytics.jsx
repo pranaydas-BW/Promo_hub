@@ -256,6 +256,21 @@ Keep it concise and actionable. Use bullet points.`
     setAiLoading(false)
   }
 
+  // ── Ending in next 7 days ────────────────────────────────────────────────────
+  const in7Days = new Date()
+  in7Days.setDate(in7Days.getDate() + 7)
+  const in7DaysStr = in7Days.toISOString().split('T')[0]
+
+  const endingSoonMap = {}
+  filtered.forEach(r => {
+    if (!r.till || r.till < today || r.till > in7DaysStr) return
+    const key = r.brand + '|' + r.till
+    if (!endingSoonMap[key]) endingSoonMap[key] = { brand: r.brand, category: r.category, till: r.till, details: [] }
+    if (r.details && !endingSoonMap[key].details.includes(r.details.trim())) 
+      endingSoonMap[key].details.push(r.details.trim())
+  })
+  const endingSoonList = Object.values(endingSoonMap).sort((a, b) => a.till.localeCompare(b.till))
+
   const tabs = [
     { id: 'weekly', label: 'Weekly Activity' },
     { id: 'monthly', label: 'Brand × Month' },
