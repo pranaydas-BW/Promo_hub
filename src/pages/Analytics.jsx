@@ -74,14 +74,28 @@ export default function Analytics() {
   const today = todayISO()
 
   useEffect(() => {
-    Promise.all([
-      supabase.from('historical_promos').select('*').limit(20000),
-      supabase.from('promo_requests').select('*').limit(5000),
-    ]).then(([{ data: h }, { data: c }]) => {
-      setHistorical(h || [])
-      setCurrent(c || [])
+    async function fetchAll() {
+      let historical = []
+      let from = 0
+      while (true) {
+        const { data, error } = await supabase
+          .from('historical_promos')
+          .select('brand_names,category,valid_from,valid_till,promotion_details,promotion_name')
+          .range(from, from + 999)
+        if (!data || data.length === 0) break
+        historical = [...historical, ...data]
+        if (data.length < 1000) break
+        from += 1000
+      }
+      const { data: current } = await supabase
+        .from('promo_requests')
+        .select('brand_names,category,date_ranges,promo_details,promotion_name')
+        .limit(5000)
+      setHistorical(historical)
+      setCurrent(current || [])
       setLoading(false)
-    })
+    }
+    fetchAll()
   }, [])
 
   // Combine all promos
