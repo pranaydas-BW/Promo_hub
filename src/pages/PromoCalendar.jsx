@@ -35,7 +35,11 @@ export default function TodayPromos() {
       .from('promo_requests')
       .select('*')
       .order('created_at', { ascending: false })
-    setRows(data || [])
+    // Only show approved promos
+    const approved = (data || []).filter(r => 
+      r.status === 'Promo Created - System' || r.current_status === 'Active'
+    )
+    setRows(approved)
     setLoading(false)
   }
 
