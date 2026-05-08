@@ -70,6 +70,7 @@ export default function Analytics() {
   const [tab, setTab] = useState('weekly')
   const [catFilter, setCatFilter] = useState('All Categories')
   const [monthFilter, setMonthFilter] = useState(6)
+  const [selectedDay, setSelectedDay] = useState(today)
   const [aiInsight, setAiInsight] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const today = todayISO()
@@ -272,11 +273,25 @@ Keep it concise and actionable. Use bullet points.`
   })
   const endingSoonList = Object.values(endingSoonMap).sort((a, b) => a.till.localeCompare(b.till))
 
+  // ── Day view ─────────────────────────────────────────────────────────────────
+  const dayPromos = filtered
+    .filter(r => r.from && r.till && r.from <= selectedDay && r.till >= selectedDay)
+    .reduce((acc, r) => {
+      const key = r.brand + '|' + r.category
+      if (!acc[key]) acc[key] = { brand: r.brand, category: r.category, offers: [] }
+      if (r.details && !acc[key].offers.includes(r.details.trim()))
+        acc[key].offers.push(r.details.trim())
+      return acc
+    }, {})
+  const dayPromosList = Object.values(dayPromos)
+    .sort((a, b) => a.category.localeCompare(b.category) || a.brand.localeCompare(b.brand))
+
   const tabs = [
     { id: 'weekly', label: 'Weekly Activity' },
     { id: 'monthly', label: 'Brand × Month' },
     { id: 'dropped', label: 'Critical Brands' },
 
+    { id: 'dayview', label: '📅 Day View' },
     { id: 'ending', label: '⏰ Ending Soon' },
     { id: 'ai', label: '✨ AI Insights' },
   ]
@@ -531,6 +546,63 @@ Keep it concise and actionable. Use bullet points.`
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+
+          {/* Day View */}
+          {tab === 'dayview' && (
+            <div>
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                <h2 className="font-display font-bold text-xl text-ink flex items-center gap-2">
+                  📅 Live Promos on a Day
+                </h2>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="date"
+                    className="bg-white border border-border rounded-lg px-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-accent/20"
+                    value={selectedDay}
+                    onChange={e => setSelectedDay(e.target.value)}
+                  />
+                  <span className="text-sm text-muted font-body">{dayPromosList.length} promos live</span>
+                  <button onClick={() => exportCSV(dayPromosList.map(r => ({...r, offers: r.offers.join(' | ')})), `live-promos-${selectedDay}.csv`)}
+                    className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
+                    <Download size={12} /> Export
+                  </button>
+                </div>
+              </div>
+
+              {dayPromosList.length === 0 ? (
+                <div className="bg-paper border border-border rounded-xl py-12 text-center">
+                  <p className="text-muted font-body">No promos live on {fmtDate(selectedDay)}.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-border bg-white">
+                  <table className="min-w-full text-sm font-body">
+                    <thead className="bg-paper border-b border-border">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">#</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Brand</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Category</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Live Offers</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dayPromosList.map((r, i) => (
+                        <tr key={i} className="border-b border-border last:border-0 hover:bg-paper/40">
+                          <td className="px-4 py-3 text-muted font-mono text-xs">{i + 1}</td>
+                          <td className="px-4 py-3 font-medium text-ink">{r.brand}</td>
+                          <td className="px-4 py-3 text-muted text-xs">{r.category}</td>
+                          <td className="px-4 py-3 text-xs text-muted max-w-[300px]">
+                            {r.offers.map((o, j) => (
+                              <div key={j} className="bg-blue-50 text-blue-700 rounded px-2 py-0.5 text-[11px] mb-1 inline-block mr-1">{o}</div>
+                            ))}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
