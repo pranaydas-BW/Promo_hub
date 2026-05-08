@@ -163,9 +163,18 @@ export default function Analytics() {
   filtered.forEach(r => {
     const month = getMonthKey(r.from)
     if (!month) return
-    if (!brandMonthMap[r.brand]) brandMonthMap[r.brand] = {}
-    if (!brandMonthMap[r.brand][month]) brandMonthMap[r.brand][month] = []
-    if (r.details) brandMonthMap[r.brand][month].push(r.details)
+    // Normalize brand name: trim + title case for dedup
+    const brand = r.brand.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
+    if (!brandMonthMap[brand]) brandMonthMap[brand] = {}
+    if (!brandMonthMap[brand][month]) brandMonthMap[brand][month] = new Set()
+    if (r.details) brandMonthMap[brand][month].add(r.details.trim())
+  })
+
+  // Convert Sets to arrays
+  Object.keys(brandMonthMap).forEach(brand => {
+    Object.keys(brandMonthMap[brand]).forEach(month => {
+      brandMonthMap[brand][month] = [...brandMonthMap[brand][month]]
+    })
   })
 
   const brandMonthTable = Object.entries(brandMonthMap)
@@ -251,7 +260,7 @@ Keep it concise and actionable. Use bullet points.`
     { id: 'weekly', label: 'Weekly Activity' },
     { id: 'monthly', label: 'Brand × Month' },
     { id: 'dropped', label: 'Critical Brands' },
-    { id: 'leaderboard', label: 'Leaderboard' },
+
     { id: 'ai', label: '✨ AI Insights' },
   ]
 
