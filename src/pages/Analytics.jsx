@@ -1,420 +1,517 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { exportCSV, fmtDate, todayISO } from '../lib/constants.jsx'
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, LineChart, Line,
-} from 'recharts'
-import { Loader2, TrendingUp, CheckCircle2, Clock, XCircle, Download, Barcode } from 'lucide-react'
+import { exportCSV, todayISO, fmtDate } from '../lib/constants.jsx'
+import { Download, RefreshCw, Loader2, TrendingUp, TrendingDown, AlertTriangle, Sparkles } from 'lucide-react'
 
-const PAL = ['#E8490F', '#1A7A4A', '#C97D10', '#2563EB', '#7C3AED', '#0891B2', '#BE123C', '#0D9488']
+const CATEGORIES = [
+  'All Categories',
+  'Beauty & Personal Care',
+  'Clothing',
+  'Electronics',
+  'Footwear',
+  'Gifting',
+  'Health & Wellness',
+  'Lifestyle',
+  'Luggage',
+  'Streetwear',
+  'Beauty and Personal Care',
+  'Fashion (Fashion Accessories, Clothing, Jewellery)',
+  'Health and Wellness',
+  'Luggage and Bags',
+]
+
+function getWeekLabel(dateStr) {
+  const d = new Date(dateStr)
+  const startOfYear = new Date(d.getFullYear(), 0, 1)
+  const week = Math.ceil(((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7)
+  return `W${week} ${d.getFullYear()}`
+}
+
+function getLastNWeeks(n) {
+  const weeks = []
+  const today = new Date()
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(today)
+    d.setDate(d.getDate() - i * 7)
+    weeks.push(getWeekLabel(d.toISOString().split('T')[0]))
+  }
+  return [...new Set(weeks)]
+}
+
+function getMonthKey(dateStr) {
+  if (!dateStr) return null
+  const d = new Date(dateStr)
+  if (isNaN(d)) return null
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function fmtMonth(key) {
+  if (!key) return ''
+  const [y, m] = key.split('-')
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  return `${months[parseInt(m)-1]} ${y}`
+}
 
 export default function Analytics() {
-  const [promos, setPromos] = useState([])
-  const [skus, setSkus] = useState([])
+  const [historical, setHistorical] = useState([])
+  const [current, setCurrent] = useState([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState('brand') // 'brand' | 'sku'
-
+  const [tab, setTab] = useState('weekly')
+  const [catFilter, setCatFilter] = useState('All Categories')
+  const [aiInsight, setAiInsight] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
   const today = todayISO()
 
   useEffect(() => {
     Promise.all([
+      supabase.from('historical_promos').select('*'),
       supabase.from('promo_requests').select('*'),
-      supabase.from('sku_items').select('*'),
-    ]).then(([{ data: p }, { data: s }]) => {
-      setPromos(p || [])
-      setSkus(s || [])
+    ]).then(([{ data: h }, { data: c }]) => {
+      setHistorical(h || [])
+      setCurrent(c || [])
       setLoading(false)
     })
   }, [])
 
-  if (loading) return (
-    <div className="flex justify-center items-center h-64 gap-2 text-muted">
-      <Loader2 size={18} className="animate-spin" /><span className="text-sm">Loading analytics…</span>
-    </div>
-  )
+  // Combine all promos
+  const allPromos = [
+    ...historical.map(r => ({
+      brand: r.brand_names || '',
+      category: r.category || '',
+      from: r.valid_from,
+      till: r.valid_till,
+      details: r.promotion_details || r.promotion_name || '',
+      source: 'historical',
+    })),
+    ...current.flatMap(r => {
+      const ranges = Array.isArray(r.date_ranges) ? r.date_ranges : []
+      return ranges.map(dr => ({
+        brand: r.brand_names || '',
+        category: r.category || '',
+        from: dr.from,
+        till: dr.till,
+        details: r.promo_details || r.promotion_name || '',
+        source: 'current',
+      }))
+    }),
+  ].filter(r => r.brand && r.from && r.till)
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 fade-in">
-      <div className="mb-6">
-        <h1 className="font-display text-3xl font-bold text-ink">Analytics</h1>
-        <p className="text-muted text-sm font-body mt-0.5">Retrospective view across all promos and SKUs</p>
-      </div>
+  const filtered = catFilter === 'All Categories'
+    ? allPromos
+    : allPromos.filter(r => r.category === catFilter)
 
-      {/* Tab switcher */}
-      <div className="flex gap-1 bg-white border border-border rounded-xl p-1 w-fit mb-8">
-        {[['brand', 'Brand Level'], ['sku', 'SKU / Barcode Level']].map(([val, label]) => (
-          <button key={val} onClick={() => setTab(val)}
-            className={`px-5 py-2 rounded-lg text-sm font-body font-medium transition-colors ${
-              tab === val ? 'bg-ink text-white' : 'text-muted hover:text-ink'
-            }`}>
-            {label}
-          </button>
-        ))}
-      </div>
+  // ── Table 1: Last 8 weeks × Category ─────────────────────────────────────
+  const last8Weeks = getLastNWeeks(8)
 
-      {tab === 'brand'
-        ? <BrandAnalytics promos={promos} today={today} />
-        : <SkuAnalytics skus={skus} promos={promos} today={today} />
-      }
-    </div>
-  )
-}
-
-// ─── Brand-level analytics ────────────────────────────────────────────────────
-
-function BrandAnalytics({ promos, today }) {
-  const total = promos.length
-  const active = promos.filter(r => r.current_status === 'Active').length
-  const pending = promos.filter(r => r.status === 'Pending').length
-  const rejected = promos.filter(r => r.status === 'Rejected').length
-
-  // Starting / ending today
-  const startingToday = promos.filter(r =>
-    Array.isArray(r.date_ranges) && r.date_ranges.some(dr => dr.from === today)
-  )
-  const endingToday = promos.filter(r =>
-    Array.isArray(r.date_ranges) && r.date_ranges.some(dr => dr.till === today)
-  )
-
-  const countBy = (arr, key) => {
-    const m = {}
-    arr.forEach(r => { const v = r[key] || 'Unknown'; m[v] = (m[v] || 0) + 1 })
-    return Object.entries(m).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count)
+  function isActiveInWeek(promo, weekLabel) {
+    // find monday of that week
+    const [wPart, year] = weekLabel.split(' ')
+    const weekNum = parseInt(wPart.replace('W', ''))
+    const jan1 = new Date(parseInt(year), 0, 1)
+    const weekStart = new Date(jan1.getTime() + (weekNum - 1) * 7 * 24 * 60 * 60 * 1000)
+    const weekEnd = new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000)
+    const from = new Date(promo.from)
+    const till = new Date(promo.till)
+    return from <= weekEnd && till >= weekStart
   }
 
-  const byCategory = countBy(promos, 'category').map(x => ({ ...x, name: x.name.split('(')[0].trim() }))
-  const byStatus = countBy(promos, 'status')
-  const byFunder = countBy(promos, 'funded_by')
-  const byPOC = countBy(promos, 'poc_name').slice(0, 8)
+  const uniqueCategories = [...new Set(allPromos.map(r => r.category).filter(Boolean))].sort()
 
-  // Top brands
-  const brandMap = {}
-  promos.forEach(r => {
-    (r.brand_names || '').split(',').map(b => b.trim()).filter(Boolean).forEach(b => {
-      brandMap[b] = (brandMap[b] || 0) + 1
-    })
+  const weeklyTable = uniqueCategories.map(cat => {
+    const catPromos = allPromos.filter(r => r.category === cat)
+    const weeks = last8Weeks.map(w => ({
+      week: w,
+      count: catPromos.filter(p => isActiveInWeek(p, w)).length,
+    }))
+    return { category: cat, weeks, total: weeks.reduce((a, w) => a + w.count, 0) }
+  }).filter(r => r.total > 0).sort((a, b) => b.total - a.total)
+
+  // ── Table 2: Brand × Month offer details ─────────────────────────────────
+  const last6Months = []
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date()
+    d.setMonth(d.getMonth() - i)
+    last6Months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
+
+  const brandMonthMap = {}
+  filtered.forEach(r => {
+    const month = getMonthKey(r.from)
+    if (!month) return
+    if (!brandMonthMap[r.brand]) brandMonthMap[r.brand] = {}
+    if (!brandMonthMap[r.brand][month]) brandMonthMap[r.brand][month] = []
+    if (r.details) brandMonthMap[r.brand][month].push(r.details)
   })
-  const topBrands = Object.entries(brandMap).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, count]) => ({ name, count }))
 
-  // Over time
-  const monthMap = {}
-  promos.forEach(r => {
-    if (r.created_at) {
-      const d = new Date(r.created_at)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      monthMap[key] = (monthMap[key] || 0) + 1
-    }
-  })
-  const overTime = Object.entries(monthMap).sort().map(([month, count]) => ({ month, count }))
+  const brandMonthTable = Object.entries(brandMonthMap)
+    .filter(([, months]) => Object.keys(months).some(m => last6Months.includes(m)))
+    .map(([brand, months]) => ({ brand, months }))
+    .sort((a, b) => a.brand.localeCompare(b.brand))
 
-  return (
-    <div className="space-y-6">
-      {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPI label="Total Promos" value={total} icon={TrendingUp} />
-        <KPI label="Currently Active" value={active} icon={CheckCircle2} color="text-success" />
-        <KPI label="Pending" value={pending} icon={Clock} color="text-warning" />
-        <KPI label="Rejected" value={rejected} icon={XCircle} color="text-danger" />
-      </div>
+  // ── Table 3: Critical brands — active last month, not this month ──────────
+  const thisMonth = getMonthKey(today)
+  const lastMonth = getMonthKey(new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString())
 
-      {/* Today alert */}
-      {(startingToday.length > 0 || endingToday.length > 0) && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <TodayAlert title="Starting Today" items={startingToday} color="text-success" bg="bg-emerald-50" border="border-emerald-200" />
-          <TodayAlert title="Ending Today" items={endingToday} color="text-danger" bg="bg-red-50" border="border-red-200" />
-        </div>
-      )}
-
-      {/* Charts row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <ChartCard title="Submissions Over Time">
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={overTime}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2DDD6" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fontFamily: 'JetBrains Mono' }} />
-              <YAxis tick={{ fontSize: 11, fontFamily: 'JetBrains Mono' }} />
-              <Tooltip contentStyle={ttStyle} />
-              <Line type="monotone" dataKey="count" stroke="#E8490F" strokeWidth={2} dot={{ r: 3, fill: '#E8490F' }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard title="By Category">
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={byCategory} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2DDD6" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 11, fontFamily: 'JetBrains Mono' }} />
-              <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 11, fontFamily: 'DM Sans' }} />
-              <Tooltip contentStyle={ttStyle} />
-              <Bar dataKey="count" fill="#E8490F" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
-
-      {/* Charts row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <ChartCard title="By Status">
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={byStatus} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={70}>
-                {byStatus.map((_, i) => <Cell key={i} fill={PAL[i % PAL.length]} />)}
-              </Pie>
-              <Tooltip contentStyle={ttStyle} />
-              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, fontFamily: 'DM Sans' }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard title="Funded By">
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={byFunder} dataKey="count" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={70}>
-                {byFunder.map((_, i) => <Cell key={i} fill={PAL[i % PAL.length]} />)}
-              </Pie>
-              <Tooltip contentStyle={ttStyle} />
-              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, fontFamily: 'DM Sans' }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard title="By POC">
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={byPOC}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2DDD6" />
-              <XAxis dataKey="name" tick={{ fontSize: 10, fontFamily: 'DM Sans' }} />
-              <YAxis tick={{ fontSize: 11, fontFamily: 'JetBrains Mono' }} />
-              <Tooltip contentStyle={ttStyle} />
-              <Bar dataKey="count" fill="#1A7A4A" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
-
-      {/* Top brands */}
-      <ChartCard title="Top Brands by Promo Volume">
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={topBrands}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E2DDD6" />
-            <XAxis dataKey="name" tick={{ fontSize: 11, fontFamily: 'DM Sans' }} />
-            <YAxis tick={{ fontSize: 11, fontFamily: 'JetBrains Mono' }} />
-            <Tooltip contentStyle={ttStyle} />
-            <Bar dataKey="count" fill="#C97D10" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </ChartCard>
-    </div>
+  const lastMonthBrands = new Set(
+    filtered.filter(r => getMonthKey(r.from) === lastMonth || getMonthKey(r.till) === lastMonth)
+      .map(r => r.brand)
   )
-}
+  const thisMonthBrands = new Set(
+    filtered.filter(r => getMonthKey(r.from) === thisMonth || getMonthKey(r.till) === thisMonth)
+      .map(r => r.brand)
+  )
+  const droppedBrands = [...lastMonthBrands].filter(b => !thisMonthBrands.has(b))
+    .map(b => {
+      const promos = filtered.filter(r => r.brand === b)
+      const last = promos.sort((a, b) => new Date(b.till) - new Date(a.till))[0]
+      return { brand: b, category: last?.category || '', lastTill: last?.till || '', lastDetails: last?.details || '' }
+    })
+    .sort((a, b) => a.category.localeCompare(b.category))
 
-// ─── SKU-level analytics ──────────────────────────────────────────────────────
-
-function SkuAnalytics({ skus, promos, today }) {
-  const [search, setSearch] = useState('')
-  const [fBrand, setFBrand] = useState('')
-  const [fType, setFType] = useState('')
-  const [fActive, setFActive] = useState(false)
-
-  const promoById = promos.reduce((a, p) => ({ ...a, [p.id]: p }), {})
-
-  // Active = promo's date_ranges include today
-  const activeBarcodes = skus.filter(s => {
-    const promo = promoById[s.promo_id]
-    return promo && Array.isArray(promo.date_ranges) &&
-      promo.date_ranges.some(dr => dr.from <= today && dr.till >= today)
+  // ── Table 4: Brand leaderboard ────────────────────────────────────────────
+  const brandStats = {}
+  filtered.forEach(r => {
+    if (!brandStats[r.brand]) brandStats[r.brand] = { brand: r.brand, category: r.category, count: 0, lastDate: '' }
+    brandStats[r.brand].count++
+    if (!brandStats[r.brand].lastDate || r.from > brandStats[r.brand].lastDate)
+      brandStats[r.brand].lastDate = r.from
   })
+  const leaderboard = Object.values(brandStats)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 50)
 
-  const filtered = skus.filter(s => {
-    const q = search.toLowerCase()
-    const isActive = promoById[s.promo_id]?.date_ranges?.some(dr => dr.from <= today && dr.till >= today)
-    return (
-      (!q || (s.barcode || '').includes(q) || (s.sku_name || '').toLowerCase().includes(q) || (s.brand_name || '').toLowerCase().includes(q)) &&
-      (!fBrand || (s.brand_name || '').toLowerCase().includes(fBrand.toLowerCase())) &&
-      (!fType || s.offer_type === fType) &&
-      (!fActive || isActive)
-    )
-  })
+  // ── AI Insights ───────────────────────────────────────────────────────────
+  const getAIInsights = async () => {
+    setAiLoading(true)
+    setAiInsight('')
 
-  const allBrands = [...new Set(skus.map(s => s.brand_name).filter(Boolean))].sort()
+    const summary = {
+      totalPromos: allPromos.length,
+      droppedBrands: droppedBrands.slice(0, 10).map(b => `${b.brand} (${b.category}, last: ${fmtDate(b.lastTill)})`),
+      topBrands: leaderboard.slice(0, 10).map(b => `${b.brand}: ${b.count} promos`),
+      categoryTotals: weeklyTable.map(r => `${r.category}: ${r.total} active weeks`),
+    }
 
-  // Charts
-  const skusByBrand = Object.entries(
-    skus.reduce((a, s) => { a[s.brand_name || 'Unknown'] = (a[s.brand_name || 'Unknown'] || 0) + 1; return a }, {})
-  ).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, count]) => ({ name, count }))
+    const prompt = `You are a retail promotions analyst for Broadway, a multi-brand retail store in India.
 
-  const byType = [
-    { name: 'Promotion', count: skus.filter(s => s.offer_type === 'promotion').length },
-    { name: 'RSP Update', count: skus.filter(s => s.offer_type === 'rsp').length },
+Here is the promo data summary:
+- Total promos analyzed: ${summary.totalPromos}
+- Top brands by promo volume: ${summary.topBrands.join(', ')}
+- Brands that were active last month but have NO promo this month (critical - need follow up): ${summary.droppedBrands.join(', ')}
+- Category activity (total active promo-weeks in last 8 weeks): ${summary.categoryTotals.join(', ')}
+
+Please provide:
+1. 3 key insights about promo activity patterns
+2. Top 5 brands to prioritize for new promos (based on gap since last promo or high historical volume)
+3. Any category that seems underserved or overserved
+4. One actionable recommendation
+
+Keep it concise and actionable. Use bullet points.`
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    })
+    const data = await res.json()
+    setAiInsight(data.content?.[0]?.text || 'Could not generate insights.')
+    setAiLoading(false)
+  }
+
+  const tabs = [
+    { id: 'weekly', label: 'Weekly Activity' },
+    { id: 'monthly', label: 'Brand × Month' },
+    { id: 'dropped', label: 'Critical Brands' },
+    { id: 'leaderboard', label: 'Leaderboard' },
+    { id: 'ai', label: '✨ AI Insights' },
   ]
 
   return (
-    <div className="space-y-6">
-      {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPI label="Total SKUs" value={skus.length} icon={Barcode} />
-        <KPI label="Active Today" value={activeBarcodes.length} icon={CheckCircle2} color="text-success" />
-        <KPI label="Promotion SKUs" value={skus.filter(s => s.offer_type === 'promotion').length} icon={TrendingUp} color="text-info" />
-        <KPI label="RSP Update SKUs" value={skus.filter(s => s.offer_type === 'rsp').length} icon={TrendingUp} color="text-warning" />
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <ChartCard title="SKUs by Brand (top 10)">
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={skusByBrand} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2DDD6" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 11, fontFamily: 'JetBrains Mono' }} />
-              <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11, fontFamily: 'DM Sans' }} />
-              <Tooltip contentStyle={ttStyle} />
-              <Bar dataKey="count" fill="#2563EB" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard title="SKUs by Offer Type">
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie data={byType} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                {byType.map((_, i) => <Cell key={i} fill={PAL[i]} />)}
-              </Pie>
-              <Tooltip contentStyle={ttStyle} />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
-
-      {/* Filterable master table */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-display font-bold text-lg text-ink">
-            All SKUs
-            <span className="font-mono text-sm text-muted font-normal ml-2">({filtered.length})</span>
-          </h3>
-          <button onClick={() => exportCSV(filtered, 'sku-filtered-export.csv')}
-            disabled={!filtered.length}
-            className="flex items-center gap-1.5 bg-ink text-white text-xs font-body px-3 py-2 rounded-lg hover:bg-gray-800 disabled:opacity-40">
-            <Download size={12} /> Export
-          </button>
-        </div>
-
-        <div className="flex flex-wrap gap-2 mb-4">
-          <div className="relative flex-1 min-w-[200px]">
-            <input className="w-full bg-white border border-border rounded-lg pl-3 pr-3 py-2 text-sm font-body placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20"
-              placeholder="Search barcode, SKU name, brand…"
-              value={search} onChange={e => setSearch(e.target.value)} />
-          </div>
-          <select className="bg-white border border-border rounded-lg px-3 py-2 text-sm font-body sm:w-40"
-            value={fBrand} onChange={e => setFBrand(e.target.value)}>
-            <option value="">All Brands</option>
-            {allBrands.map(b => <option key={b}>{b}</option>)}
-          </select>
-          <select className="bg-white border border-border rounded-lg px-3 py-2 text-sm font-body sm:w-40"
-            value={fType} onChange={e => setFType(e.target.value)}>
-            <option value="">All Types</option>
-            <option value="promotion">Promotion</option>
-            <option value="rsp">RSP Update</option>
-          </select>
-          <button onClick={() => setFActive(!fActive)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-body border transition-colors ${
-              fActive ? 'bg-emerald-50 text-success border-emerald-200' : 'bg-white text-muted border-border hover:text-ink'
-            }`}>
-            <CheckCircle2 size={13} /> Active today only
-          </button>
-        </div>
-
-        <div className="overflow-x-auto rounded-xl border border-border bg-white">
-          <table className="min-w-full text-sm font-body">
-            <thead className="bg-paper border-b border-border">
-              <tr>
-                {['Promo ID', 'Barcode', 'SKU Name', 'Brand', 'MRP', 'Discount %', 'Offer Price', 'RSP', 'Store', 'Type', 'Active?'].map(h => (
-                  <th key={h} className="px-3 py-2.5 text-left text-[10px] font-mono uppercase tracking-widest text-muted whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.slice(0, 200).map((s, i) => {
-                const promo = promoById[s.promo_id]
-                const isActive = promo?.date_ranges?.some(dr => dr.from <= today && dr.till >= today)
-                return (
-                  <tr key={s.id || i} className="border-b border-border last:border-0 hover:bg-paper/40">
-                    <td className="px-3 py-2 font-mono text-xs text-muted">{s.promo_request_id}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{s.barcode}</td>
-                    <td className="px-3 py-2 max-w-[180px] truncate">{s.sku_name}</td>
-                    <td className="px-3 py-2">{s.brand_name}</td>
-                    <td className="px-3 py-2 font-mono">₹{s.mrp}</td>
-                    <td className="px-3 py-2 font-mono">{s.discount_pct != null ? `${s.discount_pct}%` : '—'}</td>
-                    <td className="px-3 py-2 font-mono">{s.offer_price != null ? `₹${s.offer_price}` : '—'}</td>
-                    <td className="px-3 py-2 font-mono">{s.rsp != null ? `₹${s.rsp}` : '—'}</td>
-                    <td className="px-3 py-2 text-xs text-muted">{s.store || 'All'}</td>
-                    <td className="px-3 py-2">
-                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
-                        s.offer_type === 'promotion' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-teal-50 text-teal-700 border-teal-200'
-                      }`}>{s.offer_type === 'promotion' ? 'Promo' : 'RSP'}</span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {isActive ? 'Active' : 'Not Live'}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-          {filtered.length > 200 && (
-            <p className="text-center text-xs text-muted py-3 border-t border-border">
-              Showing 200 of {filtered.length} rows. Use filters or Export CSV to see all.
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Shared components ────────────────────────────────────────────────────────
-
-function KPI({ label, value, icon: Icon, color = 'text-ink' }) {
-  return (
-    <div className="bg-white border border-border rounded-xl p-4 flex items-center gap-4">
-      <Icon size={22} className={`${color} opacity-80`} />
-      <div>
-        <p className="font-display text-2xl font-bold text-ink">{value}</p>
-        <p className="text-xs font-body text-muted">{label}</p>
-      </div>
-    </div>
-  )
-}
-
-function ChartCard({ title, children }) {
-  return (
-    <div className="bg-white border border-border rounded-xl p-5">
-      <h3 className="font-display font-semibold text-sm text-ink mb-4">{title}</h3>
-      {children}
-    </div>
-  )
-}
-
-function TodayAlert({ title, items, color, bg, border }) {
-  return (
-    <div className={`${bg} border ${border} rounded-xl p-4`}>
-      <p className={`font-display font-bold text-sm ${color} mb-2`}>{title} ({items.length})</p>
-      <div className="space-y-1">
-        {items.slice(0, 4).map(r => (
-          <p key={r.id} className="text-xs font-body text-ink">
-            <span className="font-mono text-muted mr-2">{r.promo_request_id}</span>
-            {r.brand_names}
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 fade-in">
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="font-display text-3xl font-bold text-ink">Analytics</h1>
+          <p className="text-muted text-sm font-body mt-0.5">
+            {allPromos.length.toLocaleString()} promos · Historical + Current data
           </p>
-        ))}
-        {items.length > 4 && <p className={`text-xs ${color} font-mono`}>+{items.length - 4} more</p>}
+        </div>
       </div>
+
+      {/* Category filter */}
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
+        <span className="text-xs font-mono text-muted uppercase tracking-widest">Filter</span>
+        <select
+          className="bg-white border border-border rounded-lg px-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-accent/20"
+          value={catFilter} onChange={e => setCatFilter(e.target.value)}
+        >
+          {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+        </select>
+      </div>
+
+      {/* Tab switcher */}
+      <div className="flex gap-1 bg-white border border-border rounded-xl p-1 w-fit mb-6 flex-wrap">
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`px-4 py-2 rounded-lg text-sm font-body font-medium transition-colors whitespace-nowrap ${
+              tab === t.id ? 'bg-ink text-white' : 'text-muted hover:text-ink'
+            }`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center items-center h-48 gap-2 text-muted">
+          <Loader2 size={18} className="animate-spin" /><span className="text-sm">Loading analytics…</span>
+        </div>
+      ) : (
+        <>
+          {/* Table 1: Weekly Activity */}
+          {tab === 'weekly' && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-display font-bold text-xl text-ink">
+                  Category Activity — Last 8 Weeks
+                </h2>
+                <button onClick={() => exportCSV(
+                  weeklyTable.map(r => ({ category: r.category, ...r.weeks.reduce((a,w) => ({...a,[w.week]:w.count}),{}), total: r.total })),
+                  'weekly-activity.csv'
+                )} className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
+                  <Download size={12} /> Export
+                </button>
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-border bg-white">
+                <table className="min-w-full text-sm font-body">
+                  <thead className="bg-paper border-b border-border">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted sticky left-0 bg-paper">Category</th>
+                      {last8Weeks.map(w => (
+                        <th key={w} className="px-3 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted whitespace-nowrap">{w}</th>
+                      ))}
+                      <th className="px-3 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {weeklyTable.map(row => (
+                      <tr key={row.category} className="border-b border-border last:border-0 hover:bg-paper/40">
+                        <td className="px-4 py-3 font-medium text-ink sticky left-0 bg-white">{row.category}</td>
+                        {row.weeks.map(w => (
+                          <td key={w.week} className="px-3 py-3 text-center">
+                            {w.count > 0 ? (
+                              <span className={`inline-block min-w-[24px] rounded px-1.5 py-0.5 text-xs font-mono font-bold ${
+                                w.count >= 10 ? 'bg-emerald-100 text-emerald-700' :
+                                w.count >= 5 ? 'bg-blue-100 text-blue-700' :
+                                'bg-gray-100 text-gray-600'
+                              }`}>{w.count}</span>
+                            ) : (
+                              <span className="text-border">—</span>
+                            )}
+                          </td>
+                        ))}
+                        <td className="px-3 py-3 text-center font-mono font-bold text-ink">{row.total}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Table 2: Brand × Month */}
+          {tab === 'monthly' && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-display font-bold text-xl text-ink">
+                  Brand Promo Details — Last 6 Months
+                  <span className="text-sm font-normal text-muted ml-2">({brandMonthTable.length} brands)</span>
+                </h2>
+                <button onClick={() => exportCSV(
+                  brandMonthTable.map(r => ({
+                    brand: r.brand,
+                    ...last6Months.reduce((a, m) => ({ ...a, [fmtMonth(m)]: (r.months[m] || []).join(' | ') }), {})
+                  })),
+                  'brand-monthly.csv'
+                )} className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
+                  <Download size={12} /> Export
+                </button>
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-border bg-white">
+                <table className="min-w-full text-sm font-body">
+                  <thead className="bg-paper border-b border-border">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted sticky left-0 bg-paper">Brand</th>
+                      {last6Months.map(m => (
+                        <th key={m} className="px-3 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted whitespace-nowrap">{fmtMonth(m)}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {brandMonthTable.map(row => (
+                      <tr key={row.brand} className="border-b border-border last:border-0 hover:bg-paper/40">
+                        <td className="px-4 py-3 font-medium text-ink sticky left-0 bg-white">{row.brand}</td>
+                        {last6Months.map(m => (
+                          <td key={m} className="px-3 py-3 text-xs text-muted max-w-[180px]">
+                            {row.months[m] ? (
+                              <div className="space-y-1">
+                                {row.months[m].slice(0, 2).map((d, i) => (
+                                  <div key={i} className="bg-blue-50 text-blue-700 rounded px-1.5 py-0.5 text-[10px] truncate" title={d}>{d}</div>
+                                ))}
+                                {row.months[m].length > 2 && (
+                                  <div className="text-[10px] text-muted">+{row.months[m].length - 2} more</div>
+                                )}
+                              </div>
+                            ) : <span className="text-border">—</span>}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Table 3: Critical Brands */}
+          {tab === 'dropped' && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h2 className="font-display font-bold text-xl text-ink flex items-center gap-2">
+                    <AlertTriangle size={20} className="text-warning" />
+                    Critical Brands — Active Last Month, Not This Month
+                  </h2>
+                  <p className="text-sm text-muted mt-1">{droppedBrands.length} brands need follow-up</p>
+                </div>
+                <button onClick={() => exportCSV(droppedBrands, 'critical-brands.csv')}
+                  className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
+                  <Download size={12} /> Export
+                </button>
+              </div>
+              {droppedBrands.length === 0 ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl py-12 text-center">
+                  <p className="text-success font-body">🎉 All active brands from last month are still running promos this month!</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-border bg-white">
+                  <table className="min-w-full text-sm font-body">
+                    <thead className="bg-paper border-b border-border">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Brand</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Category</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Last Promo Ended</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Last Offer</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {droppedBrands.map((b, i) => (
+                        <tr key={i} className="border-b border-border last:border-0 hover:bg-amber-50/30">
+                          <td className="px-4 py-3 font-medium text-ink">{b.brand}</td>
+                          <td className="px-4 py-3 text-muted">{b.category}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-danger">{fmtDate(b.lastTill)}</td>
+                          <td className="px-4 py-3 text-xs text-muted max-w-[200px] truncate">{b.lastDetails || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Table 4: Leaderboard */}
+          {tab === 'leaderboard' && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-display font-bold text-xl text-ink flex items-center gap-2">
+                  <TrendingUp size={20} className="text-success" />
+                  Brand Leaderboard — Top 50 by Promo Volume
+                </h2>
+                <button onClick={() => exportCSV(leaderboard, 'brand-leaderboard.csv')}
+                  className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
+                  <Download size={12} /> Export
+                </button>
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-border bg-white">
+                <table className="min-w-full text-sm font-body">
+                  <thead className="bg-paper border-b border-border">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted w-10">#</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Brand</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Category</th>
+                      <th className="px-4 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted">Total Promos</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Last Promo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leaderboard.map((b, i) => (
+                      <tr key={i} className="border-b border-border last:border-0 hover:bg-paper/40">
+                        <td className="px-4 py-3 font-mono text-muted text-xs">{i + 1}</td>
+                        <td className="px-4 py-3 font-medium text-ink">{b.brand}</td>
+                        <td className="px-4 py-3 text-muted">{b.category}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-block px-2 py-0.5 rounded font-mono text-xs font-bold ${
+                            b.count >= 20 ? 'bg-emerald-100 text-emerald-700' :
+                            b.count >= 10 ? 'bg-blue-100 text-blue-700' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>{b.count}</span>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-muted">{fmtDate(b.lastDate)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* AI Insights */}
+          {tab === 'ai' && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-display font-bold text-xl text-ink flex items-center gap-2">
+                  <Sparkles size={20} className="text-accent" />
+                  AI Insights
+                </h2>
+                <button onClick={getAIInsights} disabled={aiLoading}
+                  className="flex items-center gap-1.5 bg-accent text-white text-sm font-body px-4 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors">
+                  {aiLoading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                  {aiLoading ? 'Analyzing…' : 'Generate Insights'}
+                </button>
+              </div>
+
+              {!aiInsight && !aiLoading && (
+                <div className="bg-white border border-border rounded-xl py-16 text-center">
+                  <Sparkles size={28} className="mx-auto mb-3 text-accent opacity-50" />
+                  <p className="font-body text-muted text-sm">Click "Generate Insights" to get AI-powered analysis of your promo data.</p>
+                  <p className="font-body text-muted text-xs mt-1">Analyzes {allPromos.length.toLocaleString()} promos across all brands and categories.</p>
+                </div>
+              )}
+
+              {aiLoading && (
+                <div className="bg-white border border-border rounded-xl py-16 text-center">
+                  <Loader2 size={28} className="mx-auto mb-3 text-accent animate-spin" />
+                  <p className="font-body text-muted text-sm">Analyzing your promo data…</p>
+                </div>
+              )}
+
+              {aiInsight && !aiLoading && (
+                <div className="bg-white border border-border rounded-xl p-6">
+                  <div className="prose prose-sm max-w-none font-body text-ink whitespace-pre-wrap leading-relaxed">
+                    {aiInsight}
+                  </div>
+                  <p className="text-[11px] text-muted mt-4 pt-3 border-t border-border">
+                    Based on {allPromos.length.toLocaleString()} promos · Generated {new Date().toLocaleString('en-IN')}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
-}
-
-const ttStyle = {
-  fontFamily: 'DM Sans', fontSize: 12,
-  borderRadius: 8, border: '1px solid #E2DDD6',
-  backgroundColor: 'white',
 }
