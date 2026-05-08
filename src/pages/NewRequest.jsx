@@ -7,7 +7,7 @@ import {
 import { Section, Field, StoreToggle } from '../components/FormParts'
 import {
   CheckCircle, AlertCircle, Loader2, Plus, Trash2,
-  Search, X, ArrowLeft, FileText, Copy, Download,
+  Search, X, ArrowLeft, FileText, Copy, Download, FileSpreadsheet,
   Percent, Tag,
 } from 'lucide-react'
 
@@ -40,8 +40,13 @@ const BLANK_FORM = {
   offline_online: '',
   date_ranges: [{ ...BLANK_RANGE }],
   approval_email: '',
+  approval_file_name: '',
   sku_file_link: '',
   rsp_file_link: '',
+  sku_file_name: '',
+  sku_file_data: '',
+  rsp_file_name: '',
+  rsp_file_data: '',
   remark: '',
   status: 'Pending',
   current_status: 'Not Live',
@@ -471,41 +476,54 @@ export default function NewRequest() {
             </select>
           </Field>
 
-          {/* Selected SKUs — Drive link + correct sample download */}
+          {/* Selected SKUs — CSV upload */}
           {isSelectedSKUs && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-              <p className="text-xs font-display font-semibold text-info">Selected SKUs — provide the SKU list</p>
-              <Field label="Google Sheets / Drive Link to SKU List" hint="Share with view access">
-                <input type="url" className="input-field" placeholder="https://docs.google.com/spreadsheets/…"
-                  value={form.sku_file_link} onChange={e => set('sku_file_link', e.target.value)} />
-              </Field>
-              <button type="button" onClick={isPromo ? downloadSamplePromo : downloadSampleRSP}
-                className="flex items-center gap-1.5 text-xs font-body text-info hover:underline">
-                <Download size={12} />
-                Download sample format
-                <span className="text-muted ml-1">
-                  {isPromo ? '(Barcode, SKU Name, Brand, MRP, Discount %, RSP)' : '(Barcode, SKU Name, Brand, MRP, RSP)'}
-                </span>
-              </button>
+              <p className="text-xs font-display font-semibold text-info">Selected SKUs — upload SKU file</p>
+              <CsvUploadField
+                offerType={offerType}
+                value={form.sku_file_name}
+                onParsed={(fileName, rows) => {
+                  set('sku_file_name', fileName)
+                  set('sku_file_data', JSON.stringify(rows))
+                }}
+                onClear={() => { set('sku_file_name', ''); set('sku_file_data', '') }}
+              />
             </div>
           )}
         </Section>
 
         {/* Files & Approvals */}
         <Section title="Files & Approvals">
-          <Field label="Brand Approval Email (Drive Link)" hint="Paste Google Drive link to the approval email screenshot">
-            <input type="url" className="input-field" placeholder="https://drive.google.com/…"
-              value={form.approval_email} onChange={e => set('approval_email', e.target.value)} />
+          <Field label="Brand Approval Screenshot" hint="Upload a screenshot of the brand approval email (JPG, PNG, PDF)">
+            <ApprovalUpload
+              value={form.approval_file_name}
+              url={form.approval_email}
+              onUploaded={(fileName, url) => {
+                set('approval_file_name', fileName)
+                set('approval_email', url)
+              }}
+              onClear={() => {
+                set('approval_file_name', '')
+                set('approval_email', '')
+              }}
+            />
           </Field>
 
           {isRSP && (
-            <Field label="RSP File (Drive Link)" hint="Upload RSP update sheet to Drive and paste the link">
-              <input type="url" className="input-field" placeholder="https://drive.google.com/…"
-                value={form.rsp_file_link} onChange={e => set('rsp_file_link', e.target.value)} />
-            </Field>
+            <div className="bg-teal-50 border border-teal-200 rounded-lg p-4 space-y-3">
+              <p className="text-xs font-display font-semibold text-teal-700">RSP Update — upload RSP file</p>
+              <CsvUploadField
+                offerType="RSP Update"
+                value={form.rsp_file_name}
+                onParsed={(fileName, rows) => {
+                  set('rsp_file_name', fileName)
+                  set('rsp_file_data', JSON.stringify(rows))
+                }}
+                onClear={() => { set('rsp_file_name', ''); set('rsp_file_data', '') }}
+              />
+            </div>
           )}
-
-
 
           <Field label="Remark">
             <textarea className="input-field min-h-[60px] resize-y" placeholder="Any notes or flags…"
@@ -551,6 +569,207 @@ function ChoiceCard({ icon, iconBg, title, desc, onClick, sample }) {
           className="mt-4 flex items-center gap-1.5 text-[11px] font-body text-muted hover:text-ink transition-colors pt-3 border-t border-border">
           <Download size={11} /> {sample.label}
         </button>
+      )}
+    </div>
+  )
+}
+
+// ─── CSV Upload Field with validation ────────────────────────────────────────
+function CsvUploadField({ offerType, value, onParsed, onClear }) {
+  const [error, setError] = useState(null)
+  const [preview, setPreview] = useState([])
+  const isRSP = offerType === 'RSP Update'
+
+  const REQUIRED_PROMO = ['Barcode', 'SKU Name', 'Brand Name', 'MRP', 'Discount %', 'RSP']
+  const REQUIRED_RSP   = ['Barcode', 'SKU Name', 'Brand Name', 'MRP', 'RSP']
+  const REQUIRED = isRSP ? REQUIRED_RSP : REQUIRED_PROMO
+
+  const handleFile = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setError(null); setPreview([])
+
+    // Must be CSV
+    if (!file.name.endsWith('.csv')) {
+      setError('Only CSV files are accepted. Please download the sample format and use that.')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (evt) => {
+      try {
+        const lines = evt.target.result.split('\n').filter(l => l.trim())
+        if (lines.length < 2) { setError('File is empty or has no data rows.'); return }
+
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''))
+
+        // Check required columns
+        const missing = REQUIRED.filter(r => !headers.includes(r))
+        if (missing.length > 0) {
+          setError(`Missing required columns: ${missing.join(', ')}. Please use the sample format.`)
+          return
+        }
+
+        const rows = lines.slice(1).map(line => {
+          const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''))
+          return headers.reduce((obj, h, i) => ({ ...obj, [h]: vals[i] || '' }), {})
+        }).filter(r => r['Barcode'])
+
+        if (rows.length === 0) { setError('No valid data rows found in the file.'); return }
+
+        setPreview(rows.slice(0, 3))
+        onParsed(file.name, rows)
+      } catch {
+        setError('Could not read the file. Make sure it is a valid CSV.')
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  const handleClear = () => { setError(null); setPreview([]); onClear() }
+
+  return (
+    <div className="space-y-2">
+      {!value ? (
+        <>
+          <label className="flex items-center gap-2 bg-white border-2 border-dashed border-blue-200 rounded-lg px-4 py-3 cursor-pointer hover:border-info transition-colors">
+            <FileSpreadsheet size={15} className="text-info shrink-0" />
+            <div className="flex-1">
+              <p className="text-xs font-body text-ink">Click to upload CSV</p>
+              <p className="text-[11px] text-muted mt-0.5">Required columns: {REQUIRED.join(', ')}</p>
+            </div>
+            <input type="file" accept=".csv" className="hidden" onChange={handleFile} />
+          </label>
+          <button type="button"
+            onClick={isRSP ? downloadSampleRSP : downloadSamplePromo}
+            className="flex items-center gap-1.5 text-[11px] font-body text-info hover:underline">
+            <Download size={11} /> Download sample format
+          </button>
+        </>
+      ) : (
+        <div className="flex items-center justify-between bg-white border border-emerald-200 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle size={14} className="text-success" />
+            <span className="text-xs font-body text-ink">{value}</span>
+            {preview.length > 0 && <span className="text-[11px] text-muted">({preview.length}+ rows)</span>}
+          </div>
+          <button type="button" onClick={handleClear} className="text-muted hover:text-danger transition-colors">
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+          <AlertCircle size={13} className="text-danger shrink-0 mt-0.5" />
+          <p className="text-xs font-body text-danger">{error}</p>
+        </div>
+      )}
+
+      {preview.length > 0 && (
+        <div className="overflow-x-auto rounded border border-blue-200">
+          <table className="min-w-full text-[10px] font-mono">
+            <thead className="bg-blue-50">
+              <tr>{Object.keys(preview[0]).map(h => <th key={h} className="px-2 py-1.5 text-left text-muted">{h}</th>)}</tr>
+            </thead>
+            <tbody>
+              {preview.map((r, i) => (
+                <tr key={i} className="border-t border-blue-100">
+                  {Object.values(r).map((v, j) => <td key={j} className="px-2 py-1.5 text-ink">{v}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-[10px] text-muted px-2 py-1.5 border-t border-blue-100">Showing first 3 rows preview</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Approval screenshot upload ───────────────────────────────────────────────
+function ApprovalUpload({ value, url, onUploaded, onClear }) {
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState(null)
+
+  const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+  const MAX_MB = 5
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setError(null)
+
+    if (!ACCEPTED.includes(file.type)) {
+      setError('Only JPG, PNG, WEBP or PDF files are accepted.')
+      return
+    }
+    if (file.size > MAX_MB * 1024 * 1024) {
+      setError(`File too large. Maximum size is ${MAX_MB}MB.`)
+      return
+    }
+
+    setUploading(true)
+    const fileName = `promos/${Date.now()}_${file.name.replace(/\s+/g, '_')}`
+
+    const { data, error: uploadError } = await supabase.storage
+      .from('promo-files')
+      .upload(fileName, file, { upsert: false })
+
+    setUploading(false)
+
+    if (uploadError) {
+      setError(`Upload failed: ${uploadError.message}`)
+      return
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('promo-files')
+      .getPublicUrl(fileName)
+
+    onUploaded(file.name, publicUrl)
+  }
+
+  return (
+    <div className="space-y-2">
+      {!value ? (
+        <label className={`flex items-center gap-3 bg-white border-2 border-dashed rounded-lg px-4 py-3 cursor-pointer transition-colors ${
+          uploading ? 'border-border opacity-60' : 'border-border hover:border-accent'
+        }`}>
+          {uploading ? (
+            <Loader2 size={16} className="text-muted animate-spin shrink-0" />
+          ) : (
+            <FileSpreadsheet size={16} className="text-muted shrink-0" />
+          )}
+          <div>
+            <p className="text-sm font-body text-ink">
+              {uploading ? 'Uploading…' : 'Click to upload approval screenshot'}
+            </p>
+            <p className="text-[11px] text-muted mt-0.5">JPG, PNG, PDF — max 5MB</p>
+          </div>
+          <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" className="hidden"
+            disabled={uploading} onChange={handleFile} />
+        </label>
+      ) : (
+        <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <CheckCircle size={14} className="text-success shrink-0" />
+            <a href={url} target="_blank" rel="noreferrer"
+              className="text-xs font-body text-ink hover:text-accent truncate hover:underline">
+              {value}
+            </a>
+          </div>
+          <button type="button" onClick={onClear} className="text-muted hover:text-danger transition-colors ml-2 shrink-0">
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+          <AlertCircle size={13} className="text-danger shrink-0 mt-0.5" />
+          <p className="text-xs font-body text-danger">{error}</p>
+        </div>
       )}
     </div>
   )
