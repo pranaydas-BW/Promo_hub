@@ -344,40 +344,22 @@ export default function NewRequest() {
             !form.category ? 'Select a category first' :
             brandsLoading ? 'Loading brands…' :
             availableBrands.length === 0 ? 'No brands found for this category — add them in the Brands tab' :
-            'Select all that apply'
+            'Select a brand'
           }>
             {availableBrands.length > 0 ? (
-              <div className="space-y-2">
-                <div className="flex flex-wrap gap-2">
-                  {availableBrands.map(b => {
-                    const selected = (form.brand_names || '').split(',').map(s => s.trim()).filter(Boolean).includes(b)
-                    return (
-                      <button key={b} type="button"
-                        onClick={() => {
-                          const current = (form.brand_names || '').split(',').map(s => s.trim()).filter(Boolean)
-                          const updated = selected
-                            ? current.filter(x => x !== b)
-                            : [...current, b]
-                          set('brand_names', updated.join(', '))
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-body border transition-colors ${
-                          selected
-                            ? 'bg-ink text-white border-ink'
-                            : 'bg-white text-muted border-border hover:border-ink hover:text-ink'
-                        }`}>
-                        {b}
-                      </button>
-                    )
-                  })}
-                </div>
-                {form.brand_names && (
-                  <p className="text-[11px] text-muted">Selected: <span className="text-ink font-medium">{form.brand_names}</span></p>
-                )}
-              </div>
+              <select
+                className="input-field"
+                required
+                value={form.brand_names}
+                onChange={e => set('brand_names', e.target.value)}
+              >
+                <option value="">Select brand…</option>
+                {availableBrands.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
             ) : (
               <input className={`input-field ${!form.category ? 'opacity-50' : ''}`}
                 disabled={!form.category || brandsLoading}
-                placeholder={!form.category ? 'Select a category first' : 'No brands available'}
+                placeholder={!form.category ? 'Select a category first' : 'No brands available — add in Brands tab'}
                 value={form.brand_names} onChange={e => set('brand_names', e.target.value)} />
             )}
           </Field>
