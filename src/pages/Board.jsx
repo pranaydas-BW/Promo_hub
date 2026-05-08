@@ -7,7 +7,7 @@ import {
   STATUS_OPTIONS, CURRENT_STATUS_OPTIONS, SHOPIFY_STATUS_OPTIONS,
   CATEGORIES, STATUS_STYLES, fmtDate,
 } from '../lib/constants'
-import { Search, RefreshCw, Plus, ChevronDown, ExternalLink, Loader2, Filter } from 'lucide-react'
+import { Search, RefreshCw, Plus, ChevronDown, ExternalLink, Loader2, Filter, Download } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 
 export default function Board() {
@@ -205,22 +205,44 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin }) {
 
           {/* Links */}
           <div className="flex flex-wrap gap-4">
-          {/* Approval screenshot */}
-          {r.approval_email && (
-            <div>
-              <p className="text-[10px] font-mono uppercase tracking-widest text-muted mb-1.5">Brand Approval</p>
-              {r.approval_email.match(/\.(jpg|jpeg|png|webp)$/i) ? (
-                <a href={r.approval_email} target="_blank" rel="noreferrer">
-                  <img src={r.approval_email} alt="Approval screenshot"
-                    className="max-h-48 rounded-lg border border-border object-contain hover:opacity-80 transition-opacity" />
-                </a>
-              ) : (
-                <ELink href={r.approval_email} label={r.approval_file_name || 'View Approval'} />
+          {/* Links & Files */}
+          <div className="flex flex-wrap gap-4">
+            {r.approval_email && (
+              <div>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-muted mb-1.5">Brand Approval</p>
+                {r.approval_email.match(/\.(jpg|jpeg|png|webp)$/i) ? (
+                  <a href={r.approval_email} target="_blank" rel="noreferrer">
+                    <img src={r.approval_email} alt="Approval screenshot"
+                      className="max-h-48 rounded-lg border border-border object-contain hover:opacity-80 transition-opacity" />
+                  </a>
+                ) : (
+                  <ELink href={r.approval_email} label={r.approval_file_name || 'View Approval'} />
+                )}
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-3">
+              {/* SKU file — link or CSV download */}
+              {r.sku_file_link && <ELink href={r.sku_file_link} label="SKU File" />}
+              {r.sku_file_name && r.sku_file_data && (
+                <button
+                  onClick={() => downloadCsvFromData(r.sku_file_name, r.sku_file_data)}
+                  className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
+                  <Download size={11} /> {r.sku_file_name}
+                </button>
+              )}
+
+              {/* RSP file — link or CSV download */}
+              {r.rsp_file_link && <ELink href={r.rsp_file_link} label="RSP File" />}
+              {r.rsp_file_name && r.rsp_file_data && (
+                <button
+                  onClick={() => downloadCsvFromData(r.rsp_file_name, r.rsp_file_data)}
+                  className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
+                  <Download size={11} /> {r.rsp_file_name}
+                </button>
               )}
             </div>
-          )}
-          {r.rsp_file_link && <ELink href={r.rsp_file_link} label="RSP File" />}
-          {r.sku_file_link && <ELink href={r.sku_file_link} label="SKU / Barcode File" />}
+          </div>
           </div>
 
           {r.remark && (
@@ -237,6 +259,25 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin }) {
       )}
     </div>
   )
+}
+
+function downloadCsvFromData(fileName, jsonData) {
+  try {
+    const rows = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData
+    if (!rows?.length) return
+    const headers = Object.keys(rows[0])
+    const lines = [
+      headers.join(','),
+      ...rows.map(r => headers.map(h => {
+        const v = r[h] == null ? '' : String(r[h])
+        return v.includes(',') || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v
+      }).join(','))
+    ]
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = fileName; a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) { console.error('CSV download error', e) }
 }
 
 function ELink({ href, label }) {
