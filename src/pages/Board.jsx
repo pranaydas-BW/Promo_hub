@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import {
   StatusBadge, CurrentStatusDot,
   STATUS_OPTIONS, CURRENT_STATUS_OPTIONS, SHOPIFY_STATUS_OPTIONS,
-  CATEGORIES, STATUS_STYLES, fmtDate,
+  CATEGORIES, STATUS_STYLES, fmtDate, exportCSV,
 } from '../lib/constants'
 import { Search, RefreshCw, Plus, ChevronDown, ExternalLink, Loader2, Filter, Download } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
@@ -63,6 +63,40 @@ export default function Board() {
         <div className="flex gap-2">
           <button onClick={fetchRows} className="p-2 bg-white border border-border rounded-lg hover:bg-paper transition-colors">
             <RefreshCw size={14} className="text-muted" />
+          </button>
+          <button
+            onClick={() => {
+              const toExport = filtered.map(r => ({
+                promo_request_id: r.promo_request_id || '',
+                date_of_entry: r.date_of_entry || '',
+                brand_names: r.brand_names || '',
+                category: r.category || '',
+                store: r.store || '',
+                poc_name: r.poc_name || '',
+                funded_by: r.funded_by || '',
+                offer_type: r.offer_type || '',
+                promotion_name: r.promotion_name || '',
+                promo_details: r.promo_details || '',
+                assortment_type: r.assortment_type || '',
+                offline_online: r.offline_online || '',
+                broadway_discount_pct: r.broadway_discount_pct || r.broadway_discount_both || '',
+                brand_discount_pct: r.brand_discount_pct || r.brand_discount_both || '',
+                valid_from: Array.isArray(r.date_ranges) && r.date_ranges[0] ? r.date_ranges[0].from : '',
+                valid_till: Array.isArray(r.date_ranges) && r.date_ranges[0] ? r.date_ranges[0].till : '',
+                all_date_ranges: JSON.stringify(r.date_ranges),
+                status: r.status || '',
+                current_status: r.current_status || '',
+                shopify_promo_status: r.shopify_promo_status || '',
+                ginesys_promo_id: r.ginesys_promo_id || '',
+                shopify_discount_id: r.shopify_discount_id || '',
+                picked_by: r.picked_by || '',
+                remark: r.remark || '',
+              }))
+              exportCSV(toExport, `promo-board-export-${new Date().toISOString().split('T')[0]}.csv`)
+            }}
+            disabled={!filtered.length}
+            className="flex items-center gap-1.5 bg-white border border-border text-sm font-body px-3 py-2 rounded-lg hover:bg-paper disabled:opacity-40 transition-colors">
+            <Download size={14} className="text-muted" /> Export CSV
           </button>
           <Link to="/new" className="flex items-center gap-1.5 bg-accent text-white text-sm font-body font-medium px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors">
             <Plus size={13} /> New Request
