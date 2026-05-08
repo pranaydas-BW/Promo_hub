@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import {
@@ -12,15 +12,15 @@ import {
 } from 'lucide-react'
 
 const CATEGORIES = [
-  'Beauty & Personal Care',
-  'Clothing',
-  'Electronics',
   'Footwear',
+  'Fashion (Fashion Accessories, Clothing, Jewellery)',
+  'Beauty and Personal Care',
+  'Luggage and Bags',
+  'Others',
   'Gifting',
-  'Health & Wellness',
-  'Lifestyle',
-  'Luggage',
-  'Streetwear',
+  'Electronics',
+  'Kids',
+  'Home',
 ]
 
 const BLANK_RANGE = { from: '', till: '' }
@@ -204,6 +204,20 @@ export default function NewRequest() {
   const [pocError, setPocError] = useState('')
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  // ── Load brands by category ───────────────────────────────────────────────
+  const [availableBrands, setAvailableBrands] = useState([])
+  const [brandsLoading, setBrandsLoading] = useState(false)
+
+  useEffect(() => {
+    if (!form.category) { setAvailableBrands([]); return }
+    setBrandsLoading(true)
+    supabase.from('brands').select('brand_name').eq('category', form.category).order('brand_name')
+      .then(({ data }) => {
+        setAvailableBrands(data?.map(b => b.brand_name) || [])
+        setBrandsLoading(false)
+      })
+  }, [form.category])
   const addRange = () => setForm(f => ({ ...f, date_ranges: [...f.date_ranges, { ...BLANK_RANGE }] }))
   const removeRange = (i) => setForm(f => ({ ...f, date_ranges: f.date_ranges.filter((_, idx) => idx !== i) }))
   const setRange = (i, key, val) => setForm(f => ({
@@ -319,15 +333,53 @@ export default function NewRequest() {
         {/* Brand & Identity */}
         <Section title="Brand & Identity">
           <Field label="Category" required>
-            <select className="input-field" required value={form.category} onChange={e => set('category', e.target.value)}>
+            <select className="input-field" required value={form.category}
+              onChange={e => { set('category', e.target.value); set('brand_names', '') }}>
               <option value="">Select…</option>
               {CATEGORIES.map(c => <option key={c}>{c}</option>)}
             </select>
           </Field>
 
-          <Field label="Brand Name(s)" required hint="Comma separated if multiple — e.g. MamaEarth, Aqualogica">
-            <input className="input-field" required placeholder="MamaEarth, Aqualogica"
-              value={form.brand_names} onChange={e => set('brand_names', e.target.value)} />
+          <Field label="Brand Name(s)" required hint={
+            !form.category ? 'Select a category first' :
+            brandsLoading ? 'Loading brands…' :
+            availableBrands.length === 0 ? 'No brands found for this category — add them in the Brands tab' :
+            'Select all that apply'
+          }>
+            {availableBrands.length > 0 ? (
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  {availableBrands.map(b => {
+                    const selected = (form.brand_names || '').split(',').map(s => s.trim()).filter(Boolean).includes(b)
+                    return (
+                      <button key={b} type="button"
+                        onClick={() => {
+                          const current = (form.brand_names || '').split(',').map(s => s.trim()).filter(Boolean)
+                          const updated = selected
+                            ? current.filter(x => x !== b)
+                            : [...current, b]
+                          set('brand_names', updated.join(', '))
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-body border transition-colors ${
+                          selected
+                            ? 'bg-ink text-white border-ink'
+                            : 'bg-white text-muted border-border hover:border-ink hover:text-ink'
+                        }`}>
+                        {b}
+                      </button>
+                    )
+                  })}
+                </div>
+                {form.brand_names && (
+                  <p className="text-[11px] text-muted">Selected: <span className="text-ink font-medium">{form.brand_names}</span></p>
+                )}
+              </div>
+            ) : (
+              <input className={`input-field ${!form.category ? 'opacity-50' : ''}`}
+                disabled={!form.category || brandsLoading}
+                placeholder={!form.category ? 'Select a category first' : 'No brands available'}
+                value={form.brand_names} onChange={e => set('brand_names', e.target.value)} />
+            )}
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
@@ -470,6 +522,8 @@ export default function NewRequest() {
                 value={form.rsp_file_link} onChange={e => set('rsp_file_link', e.target.value)} />
             </Field>
           )}
+
+
 
           <Field label="Remark">
             <textarea className="input-field min-h-[60px] resize-y" placeholder="Any notes or flags…"
