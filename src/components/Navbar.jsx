@@ -24,7 +24,7 @@ export default function Navbar() {
             <Tag size={13} className="text-white" />
           </div>
           <span className="font-display font-bold text-base text-ink">
-            Promo<span className="text-accent">Hub</span>
+            Broadway <span className="text-accent">Promos</span>
           </span>
         </Link>
 

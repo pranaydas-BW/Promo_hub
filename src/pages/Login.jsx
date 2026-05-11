@@ -13,7 +13,7 @@ export default function Login() {
             <Tag size={16} className="text-white" />
           </div>
           <span className="font-display font-bold text-2xl text-ink">
-            Promo<span className="text-accent">Hub</span>
+            Broadway <span className="text-accent">Promos</span>
           </span>
         </div>
 
@@ -21,7 +21,7 @@ export default function Login() {
         <div className="bg-white border border-border rounded-2xl p-8 shadow-sm">
           <h1 className="font-display text-xl font-bold text-ink mb-1 text-center">Sign in</h1>
           <p className="text-muted text-sm font-body text-center mb-6">
-            Use your Broadway Live Google account
+            Sign in with your Broadway Live account
           </p>
 
           <button
