@@ -246,6 +246,9 @@ export default function NewRequest() {
     if (!form.store || (Array.isArray(form.store) && form.store.length === 0)) {
       setError('Please select at least one store.'); setLoading(false); return
     }
+    if (!form.approval_email) {
+      setError('Please upload the brand approval screenshot.'); setLoading(false); return
+    }
     const payload = {
       ...form,
       offer_type: offerType,
