@@ -6,7 +6,7 @@ import {
   StatusBadge, CurrentStatusDot,
   STATUS_OPTIONS, CURRENT_STATUS_OPTIONS, SHOPIFY_STATUS_OPTIONS,
   CATEGORIES, STATUS_STYLES, fmtDate, exportCSV,
-} from '../lib/constants'
+} from '../lib/constants.jsx'
 import { Search, RefreshCw, Plus, ChevronDown, ExternalLink, Loader2, Filter, Download } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 
