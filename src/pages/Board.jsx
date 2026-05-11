@@ -404,11 +404,19 @@ function StatusPanel({ row: r, onPatch, updating, allRows }) {
             ⚠️ {overlapping.length} overlapping promo{overlapping.length > 1 ? 's' : ''} found for this date range
           </p>
           <div className="space-y-1">
-            {overlapping.slice(0, 3).map(o => (
-              <p key={o.id} className="text-[11px] font-body text-amber-700">
-                <span className="font-mono">{o.promo_request_id}</span> — {o.brand_names} · {o.status}
-              </p>
-            ))}
+            {overlapping.slice(0, 3).map(o => {
+              const ranges = Array.isArray(o.date_ranges) ? o.date_ranges : []
+              const first = ranges[0] || {}
+              return (
+                <p key={o.id} className="text-[11px] font-body text-amber-700">
+                  <span className="font-mono font-bold">{o.promo_request_id}</span>
+                  {' · '}{o.brand_names}
+                  {o.promotion_name ? ` · ${o.promotion_name}` : ''}
+                  {first.from ? ` · ${first.from} → ${first.till}` : ''}
+                  {' · '}<span className="italic">{o.status}</span>
+                </p>
+              )
+            })}
             {overlapping.length > 3 && <p className="text-[11px] text-muted">+{overlapping.length - 3} more</p>}
           </div>
         </div>
@@ -488,6 +496,16 @@ function StatusPanel({ row: r, onPatch, updating, allRows }) {
           value={draft.remark}
           onChange={e => setDraft(d => ({ ...d, remark: e.target.value }))}
         />
+      </div>
+
+      {/* Timestamps */}
+      <div className="flex gap-4 text-[10px] font-mono text-muted pt-1">
+        {r.created_at && (
+          <span>Requested: {new Date(r.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+        )}
+        {r.updated_at && r.updated_at !== r.created_at && (
+          <span>Updated: {new Date(r.updated_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+        )}
       </div>
 
       {/* Action buttons */}
