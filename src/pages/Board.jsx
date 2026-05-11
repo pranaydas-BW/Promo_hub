@@ -351,6 +351,8 @@ function StatusPanel({ row: r, onPatch, updating, allRows }) {
   const myRanges = Array.isArray(r.date_ranges) ? r.date_ranges : []
   const overlapping = allRows.filter(other => {
     if (other.id === r.id) return false
+    // Only show overlaps for the same brand
+    if (other.brand_names !== r.brand_names) return false
     const otherRanges = Array.isArray(other.date_ranges) ? other.date_ranges : []
     return myRanges.some(myR =>
       otherRanges.some(otR =>
