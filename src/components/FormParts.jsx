@@ -20,7 +20,7 @@ export function Field({ label, required, hint, children }) {
 }
 
 export function StoreToggle({ selected = [], onChange }) {
-  const STORES = ['VK, Delhi', 'BH, Hyderabad', 'Pune']
+  const STORES = ['VK, Delhi', 'BH, Hyderabad', 'Pune', 'Mumbai']
   const toggle = (s) => onChange(
     selected.includes(s) ? selected.filter(x => x !== s) : [...selected, s]
   )

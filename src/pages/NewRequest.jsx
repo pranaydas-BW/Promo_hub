@@ -243,6 +243,9 @@ export default function NewRequest() {
     setLoading(true); setError(null)
     const validRanges = form.date_ranges.filter(r => r.from && r.till)
     if (!validRanges.length) { setError('Please fill in at least one complete date range.'); setLoading(false); return }
+    if (!form.store || (Array.isArray(form.store) && form.store.length === 0)) {
+      setError('Please select at least one store.'); setLoading(false); return
+    }
     const payload = {
       ...form,
       offer_type: offerType,
@@ -411,7 +414,7 @@ export default function NewRequest() {
             </div>
           )}
 
-          <Field label="Store(s)" hint="Select all that apply">
+          <Field label="Store(s)" required hint="Select at least one store">
             <StoreToggle selected={form.store} onChange={v => set('store', v)} />
           </Field>
         </Section>
@@ -452,13 +455,13 @@ export default function NewRequest() {
         {/* Offer Details */}
         <Section title={`Offer Details — ${offerType}`}>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Offline / Online">
-              <select className="input-field" value={form.offline_online} onChange={e => set('offline_online', e.target.value)}>
+            <Field label="Offline / Online" required>
+              <select className="input-field" required value={form.offline_online} onChange={e => set('offline_online', e.target.value)}>
                 <option value="">Select…</option>
                 {OFFLINE_ONLINE_OPTIONS.map(o => <option key={o}>{o}</option>)}
               </select>
             </Field>
-            <Field label="Promotion Name">
+            <Field label="Promotion Name" required>
               <input className="input-field" placeholder="e.g. November Offer"
                 value={form.promotion_name} onChange={e => set('promotion_name', e.target.value)} />
             </Field>
@@ -471,7 +474,7 @@ export default function NewRequest() {
           </Field>
 
           <Field label="Assortment Type" required>
-            <select className="input-field" value={form.assortment_type} onChange={e => set('assortment_type', e.target.value)}>
+            <select className="input-field" required value={form.assortment_type} onChange={e => set('assortment_type', e.target.value)}>
               <option value="">Select…</option>
               {ASSORTMENT_TYPES.map(a => <option key={a}>{a}</option>)}
             </select>
