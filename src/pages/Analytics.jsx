@@ -70,6 +70,7 @@ export default function Analytics() {
   const [tab, setTab] = useState('weekly')
   const [catFilter, setCatFilter] = useState('All Categories')
   const [monthFilter, setMonthFilter] = useState(6)
+  const [storeFilter, setStoreFilter] = useState('All')
   const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split('T')[0])
   const [aiInsight, setAiInsight] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
@@ -108,6 +109,7 @@ export default function Analytics() {
       from: r.valid_from,
       till: r.valid_till,
       details: r.promotion_details || r.promotion_name || '',
+      store: r.store || '',
       source: 'historical',
     })),
     ...current.flatMap(r => {
@@ -118,14 +120,21 @@ export default function Analytics() {
         from: dr.from,
         till: dr.till,
         details: r.promo_details || r.promotion_name || '',
+        store: r.store || '',
         source: 'current',
       }))
     }),
   ].filter(r => r.brand && r.from && r.till)
 
-  const filtered = catFilter === 'All Categories'
+  const STORES = ['All', 'VK, Delhi', 'BH, Hyderabad', 'Pune', 'Mumbai']
+
+  const storeFiltered = storeFilter === 'All'
     ? allPromos
-    : allPromos.filter(r => r.category === catFilter)
+    : allPromos.filter(r => (r.store || '').includes(storeFilter))
+
+  const filtered = catFilter === 'All Categories'
+    ? storeFiltered
+    : storeFiltered.filter(r => r.category === catFilter)
 
   // ── Table 1: Last 8 weeks × Category ─────────────────────────────────────
   const last8Weeks = getLastNWeeks(8)
@@ -315,6 +324,12 @@ Keep it concise and actionable. Use bullet points.`
           value={catFilter} onChange={e => setCatFilter(e.target.value)}
         >
           {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+        </select>
+        <select
+          className="bg-white border border-border rounded-lg px-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-accent/20"
+          value={storeFilter} onChange={e => setStoreFilter(e.target.value)}
+        >
+          {STORES.map(s => <option key={s}>{s}</option>)}
         </select>
       </div>
 
