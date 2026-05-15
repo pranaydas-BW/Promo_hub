@@ -130,7 +130,7 @@ export default function Analytics() {
 
   const storeFiltered = storeFilter === 'All'
     ? allPromos
-    : allPromos.filter(r => (r.store || '').includes(storeFilter))
+    : allPromos.filter(r => !r.store || r.store.includes(storeFilter))
 
   const filtered = catFilter === 'All Categories'
     ? storeFiltered
