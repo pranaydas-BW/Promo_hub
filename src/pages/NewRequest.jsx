@@ -55,7 +55,7 @@ const BLANK_FORM = {
 // ─── Sample downloads ─────────────────────────────────────────────────────────
 function downloadSamplePromo() {
   const csv = [
-    'Barcode,Brand Name,MRP,Discount %',
+    'Barcode,SKU Name,Brand Name,Discount %',
     '8901234567890,Brand Name,399,20',
     '8901234567891,Brand Name,199,15',
   ].join('\n')
@@ -64,7 +64,7 @@ function downloadSamplePromo() {
 
 function downloadSampleRSP() {
   const csv = [
-    'Barcode,Brand Name,MRP,RSP',
+    'Barcode,SKU Name,Brand Name,MRP,RSP',
     '8901234567890,Brand Name,399,319',
     '8901234567891,Brand Name,199,169',
   ].join('\n')
@@ -126,7 +126,7 @@ function StepOfferType({ onChoose, onBack }) {
           title="Promotion"
           desc={<>% discount on SKUs.<br />e.g. Flat 20% off, Buy 2 Get 15% off</>}
           onClick={() => onChoose('Promotion')}
-          sample={{ label: 'Sample format: Barcode, Brand Name, MRP, Discount %', fn: downloadSamplePromo }}
+          sample={{ label: 'Sample format: Barcode, SKU Name, Brand Name, Discount %', fn: downloadSamplePromo }}
         />
         <ChoiceCard
           icon={<Tag size={20} className="text-success" />}
@@ -134,7 +134,7 @@ function StepOfferType({ onChoose, onBack }) {
           title="RSP Update"
           desc={<>Fixed selling price update.<br />e.g. New RSP ₹319 instead of ₹399</>}
           onClick={() => onChoose('RSP Update')}
-          sample={{ label: 'Sample format: Barcode, Brand Name, MRP, RSP', fn: downloadSampleRSP }}
+          sample={{ label: 'Sample format: Barcode, SKU Name, Brand Name, MRP, RSP', fn: downloadSampleRSP }}
         />
       </div>
     </div>
@@ -587,7 +587,7 @@ function CsvUploadField({ offerType, value, onParsed, onClear }) {
   const [preview, setPreview] = useState([])
   const isRSP = offerType === 'RSP Update'
 
-  const REQUIRED_PROMO = ['Barcode', 'SKU Name', 'Brand Name', 'MRP', 'Discount %', 'RSP']
+  const REQUIRED_PROMO = ['Barcode', 'SKU Name', 'Brand Name', 'Discount %']
   const REQUIRED_RSP   = ['Barcode', 'SKU Name', 'Brand Name', 'MRP', 'RSP']
   const REQUIRED = isRSP ? REQUIRED_RSP : REQUIRED_PROMO
 
