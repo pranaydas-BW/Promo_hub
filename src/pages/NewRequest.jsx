@@ -37,6 +37,7 @@ const BLANK_FORM = {
   promo_details: '',
   promotion_name: '',
   assortment_type: '',
+  discount_on: '',
   offline_online: '',
   date_ranges: [{ ...BLANK_RANGE }],
   approval_email: '',
@@ -64,9 +65,9 @@ function downloadSamplePromo() {
 
 function downloadSampleRSP() {
   const csv = [
-    'Barcode,SKU Name,Brand Name,MRP,RSP',
-    '8901234567890,Brand Name,399,319',
-    '8901234567891,Brand Name,199,169',
+    'Barcode,Item Name,Batch_ID,Brand Name,RSP,MRP',
+    '8901234567890,Product Name 250ml,BATCH001,Brand Name,319,399',
+    '8901234567891,Another Product 100g,BATCH002,Brand Name,169,199',
   ].join('\n')
   trigger(csv, 'sample-rsp-update-skus.csv')
 }
@@ -479,8 +480,32 @@ export default function NewRequest() {
           <Field label="Assortment Type" required>
             <select className="input-field" required value={form.assortment_type} onChange={e => set('assortment_type', e.target.value)}>
               <option value="">Select…</option>
-              {ASSORTMENT_TYPES.map(a => <option key={a}>{a}</option>)}
+              {ASSORTMENT_TYPES.filter(a => a !== 'All SKUs').map(a => <option key={a}>{a}</option>)}
             </select>
+          </Field>
+
+          {/* Discount on MRP or RSP */}
+          <Field label="Discount on MRP or RSP" required>
+            <div className="flex gap-3">
+              {['MRP', 'RSP'].map(opt => (
+                <label key={opt} className={`flex-1 flex items-center justify-center gap-2 border-2 rounded-lg px-4 py-2.5 cursor-pointer transition-all text-sm font-body font-medium ${
+                  form.discount_on === opt
+                    ? 'border-accent bg-accent/5 text-accent'
+                    : 'border-border bg-white text-muted hover:border-ink/40'
+                }`}>
+                  <input
+                    type="radio"
+                    name="discount_on"
+                    value={opt}
+                    checked={form.discount_on === opt}
+                    onChange={() => set('discount_on', opt)}
+                    className="hidden"
+                    required
+                  />
+                  {opt}
+                </label>
+              ))}
+            </div>
           </Field>
 
           {/* Selected SKUs — CSV upload */}
@@ -588,7 +613,7 @@ function CsvUploadField({ offerType, value, onParsed, onClear }) {
   const isRSP = offerType === 'RSP Update'
 
   const REQUIRED_PROMO = ['Barcode', 'SKU Name', 'Brand Name', 'Discount %']
-  const REQUIRED_RSP   = ['Barcode', 'SKU Name', 'Brand Name', 'MRP', 'RSP']
+  const REQUIRED_RSP   = ['Barcode', 'Item Name', 'Batch_ID', 'Brand Name', 'RSP', 'MRP']
   const REQUIRED = isRSP ? REQUIRED_RSP : REQUIRED_PROMO
 
   const handleFile = (e) => {
