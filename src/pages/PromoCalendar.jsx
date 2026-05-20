@@ -85,6 +85,8 @@ export default function TodayPromos() {
     picked_by: r.picked_by || '',
     ginesys_promo_id: r.ginesys_promo_id || '',
     shopify_discount_id: r.shopify_discount_id || '',
+    sku_file_url: r.sku_file_link || '',
+    approval_url: r.approval_email || '',
   }))
 
   return (
