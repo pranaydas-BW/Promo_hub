@@ -515,9 +515,10 @@ export default function NewRequest() {
               <CsvUploadField
                 offerType={offerType}
                 value={form.sku_file_name}
-                onParsed={(fileName, rows) => {
+                onParsed={(fileName, rows, url) => {
                   set('sku_file_name', fileName)
                   set('sku_file_data', JSON.stringify(rows))
+                  set('sku_file_link', url || '')
                 }}
                 onClear={() => { set('sku_file_name', ''); set('sku_file_data', '') }}
               />
@@ -548,9 +549,10 @@ export default function NewRequest() {
               <CsvUploadField
                 offerType="RSP Update"
                 value={form.rsp_file_name}
-                onParsed={(fileName, rows) => {
+                onParsed={(fileName, rows, url) => {
                   set('rsp_file_name', fileName)
                   set('rsp_file_data', JSON.stringify(rows))
+                  set('rsp_file_link', url || '')
                 }}
                 onClear={() => { set('rsp_file_name', ''); set('rsp_file_data', '') }}
               />
@@ -616,26 +618,24 @@ function CsvUploadField({ offerType, value, onParsed, onClear }) {
   const REQUIRED_RSP   = ['Barcode', 'Item Name', 'Brand Name', 'RSP', 'MRP']
   const REQUIRED = isRSP ? REQUIRED_RSP : REQUIRED_PROMO
 
-  const handleFile = (e) => {
+  const handleFile = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
     setError(null); setPreview([])
 
-    // Must be CSV
     if (!file.name.endsWith('.csv')) {
       setError('Only CSV files are accepted. Please download the sample format and use that.')
       return
     }
 
     const reader = new FileReader()
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const lines = evt.target.result.split('\n').filter(l => l.trim())
         if (lines.length < 2) { setError('File is empty or has no data rows.'); return }
 
         const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''))
 
-        // Check required columns
         const missing = REQUIRED.filter(r => !headers.includes(r))
         if (missing.length > 0) {
           setError(`Missing required columns: ${missing.join(', ')}. Please use the sample format.`)
@@ -650,7 +650,19 @@ function CsvUploadField({ offerType, value, onParsed, onClear }) {
         if (rows.length === 0) { setError('No valid data rows found in the file.'); return }
 
         setPreview(rows.slice(0, 3))
-        onParsed(file.name, rows)
+
+        // Upload to Supabase Storage for a public URL
+        const fileName = `promos/${Date.now()}_${file.name.replace(/\s+/g, '_')}`
+        let publicUrl = ''
+        const { error: uploadError } = await supabase.storage
+          .from('promo-files').upload(fileName, file, { upsert: false })
+        if (!uploadError) {
+          const { data: { publicUrl: url } } = supabase.storage
+            .from('promo-files').getPublicUrl(fileName)
+          publicUrl = url
+        }
+
+        onParsed(file.name, rows, publicUrl)
       } catch {
         setError('Could not read the file. Make sure it is a valid CSV.')
       }
