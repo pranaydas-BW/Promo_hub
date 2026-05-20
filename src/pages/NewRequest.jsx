@@ -484,8 +484,8 @@ export default function NewRequest() {
             </select>
           </Field>
 
-          {/* Discount on MRP or RSP */}
-          <Field label="Discount on MRP or RSP" required>
+          {/* Discount on MRP or RSP — Promotion only */}
+          {isPromo && <Field label="Discount on MRP or RSP" required>
             <div className="flex gap-3">
               {['MRP', 'RSP'].map(opt => (
                 <label key={opt} className={`flex-1 flex items-center justify-center gap-2 border-2 rounded-lg px-4 py-2.5 cursor-pointer transition-all text-sm font-body font-medium ${
@@ -506,12 +506,12 @@ export default function NewRequest() {
                 </label>
               ))}
             </div>
-          </Field>
+          </Field>}
 
-          {/* Selected SKUs — CSV upload */}
-          {isSelectedSKUs && (
+          {/* SKU CSV upload — always show for Promotion */}
+          {isPromo && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-              <p className="text-xs font-display font-semibold text-info">Selected SKUs — upload SKU file</p>
+              <p className="text-xs font-display font-semibold text-info">Upload SKU file</p>
               <CsvUploadField
                 offerType={offerType}
                 value={form.sku_file_name}
@@ -613,7 +613,7 @@ function CsvUploadField({ offerType, value, onParsed, onClear }) {
   const isRSP = offerType === 'RSP Update'
 
   const REQUIRED_PROMO = ['Barcode', 'SKU Name', 'Brand Name', 'Discount %']
-  const REQUIRED_RSP   = ['Barcode', 'Item Name', 'Batch_ID', 'Brand Name', 'RSP', 'MRP']
+  const REQUIRED_RSP   = ['Barcode', 'Item Name', 'Brand Name', 'RSP', 'MRP']
   const REQUIRED = isRSP ? REQUIRED_RSP : REQUIRED_PROMO
 
   const handleFile = (e) => {
