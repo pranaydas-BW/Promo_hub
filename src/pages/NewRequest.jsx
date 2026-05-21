@@ -8,7 +8,7 @@ import { Section, Field, StoreToggle } from '../components/FormParts'
 import {
   CheckCircle, AlertCircle, Loader2, Plus, Trash2,
   Search, X, ArrowLeft, FileText, Copy, Download, FileSpreadsheet,
-  Percent, Tag,
+  Percent, Tag, XCircle,
 } from 'lucide-react'
 
 const CATEGORIES = [
@@ -81,7 +81,7 @@ function trigger(csv, filename) {
 
 function isValidPOCEmail(e) { return /^[a-zA-Z0-9._%+-]+@broadwaylive\.in$/.test(e) }
 
-// ─── Step 1: Fresh or Replicate ───────────────────────────────────────────────
+// ─── Step 1: Entry type (now includes Promo Closure) ─────────────────────────
 function StepEntryType({ onChoose }) {
   return (
     <div className="max-w-xl mx-auto px-4 py-16 fade-in">
@@ -89,7 +89,7 @@ function StepEntryType({ onChoose }) {
         <h1 className="font-display text-3xl font-bold text-ink">New Promo Request</h1>
         <p className="text-muted font-body mt-2 text-sm">Step 1 of 3 — Entry type</p>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <ChoiceCard
           icon={<FileText size={20} className="text-accent" />}
           iconBg="bg-accent/10 group-hover:bg-accent/20"
@@ -100,9 +100,17 @@ function StepEntryType({ onChoose }) {
         <ChoiceCard
           icon={<Copy size={20} className="text-ink" />}
           iconBg="bg-ink/10 group-hover:bg-ink/20"
-          title="Based on Existing Promo"
+          title="Based on Existing"
           desc="Enter a past Promo ID — details will be pre-filled."
           onClick={() => onChoose('replicate')}
+        />
+        {/* #4 — Promo Closure */}
+        <ChoiceCard
+          icon={<XCircle size={20} className="text-danger" />}
+          iconBg="bg-red-50 group-hover:bg-red-100"
+          title="Promo Closure"
+          desc="Close an existing promo — enter Promo Code and closure date."
+          onClick={() => onChoose('closure')}
         />
       </div>
     </div>
@@ -162,9 +170,8 @@ function StepReplicate({ onFound, onBack }) {
     onFound({
       ...BLANK_FORM, ...rest,
       store: Array.isArray(rest.store) ? rest.store : (rest.store || '').split(',').map(s => s.trim()).filter(Boolean),
-      date_ranges: [{ ...BLANK_RANGE }],  // always fresh dates
+      date_ranges: [{ ...BLANK_RANGE }],
       status: 'Pending', current_status: 'Not Live',
-      // Keep files from original — team can re-upload if needed
     }, promo_request_id, rest.offer_type)
   }, [dupeId, onFound])
 
@@ -196,13 +203,160 @@ function StepReplicate({ onFound, onBack }) {
   )
 }
 
+// ─── #4: Promo Closure form ───────────────────────────────────────────────────
+function StepPromoClosure({ onBack }) {
+  const navigate = useNavigate()
+  const [promoCode, setPromoCode] = useState('')
+  const [closureDate, setClosureDate] = useState('')
+  const [remark, setRemark] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [linked, setLinked] = useState(null) // the found promo
+  const [searching, setSearching] = useState(false)
+  const [searchError, setSearchError] = useState(null)
+  const [success, setSuccess] = useState(false)
+
+  const handleSearch = useCallback(async () => {
+    if (!promoCode.trim()) return
+    setSearching(true); setSearchError(null); setLinked(null)
+    const query = promoCode.trim().startsWith('#') ? promoCode.trim() : `#${promoCode.trim()}`
+    const { data, error: err } = await supabase
+      .from('promo_requests').select('*').eq('promo_request_id', query).single()
+    setSearching(false)
+    if (err || !data) { setSearchError(`No promo found with ID "${query}".`); return }
+    setLinked(data)
+  }, [promoCode])
+
+  const handleSubmit = async () => {
+    if (!promoCode.trim()) { setError('Enter a promo code.'); return }
+    if (!closureDate) { setError('Select a closure date.'); return }
+    setLoading(true); setError(null)
+
+    const payload = {
+      offer_type: 'Promo Closure',
+      promotion_name: `Closure: ${promoCode.trim()}`,
+      promo_details: `Promo closure for ${promoCode.trim()}. Closure date: ${closureDate}.`,
+      brand_names: linked?.brand_names || '',
+      category: linked?.category || '',
+      poc_name: linked?.poc_name || '',
+      store: linked?.store || '',
+      funded_by: linked?.funded_by || '',
+      date_ranges: [{ from: closureDate, till: closureDate }],
+      linked_promo_id: promoCode.trim().startsWith('#') ? promoCode.trim() : `#${promoCode.trim()}`,
+      remark: remark || '',
+      status: 'Pending',
+      current_status: 'Not Live',
+      date_of_entry: todayISO(),
+    }
+
+    const { error: err } = await supabase.from('promo_requests').insert([payload])
+    setLoading(false)
+    if (err) { setError(err.message) } else {
+      setSuccess(true)
+      setTimeout(() => navigate('/'), 2000)
+    }
+  }
+
+  if (success) return (
+    <div className="max-w-lg mx-auto mt-24 text-center px-4 fade-in">
+      <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+        <CheckCircle className="text-success" size={32} />
+      </div>
+      <h2 className="font-display text-2xl font-bold text-ink mb-2">Closure Submitted!</h2>
+      <p className="text-muted font-body text-sm">Taking you back to the board…</p>
+    </div>
+  )
+
+  return (
+    <div className="max-w-xl mx-auto px-4 py-16 fade-in">
+      <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink mb-8 transition-colors">
+        <ArrowLeft size={14} /> Back
+      </button>
+      <div className="mb-8">
+        <div className="flex items-center gap-2 mb-1">
+          <XCircle size={22} className="text-danger" />
+          <h1 className="font-display text-2xl font-bold text-ink">Promo Closure</h1>
+        </div>
+        <p className="text-muted font-body text-sm">Enter a promo code and closure date. This will appear on the Promo Board as a pending closure request.</p>
+      </div>
+
+      <div className="bg-white border border-border rounded-xl p-6 space-y-5">
+        {/* Promo Code lookup */}
+        <div>
+          <label className="text-[10px] font-mono uppercase text-muted mb-1.5 block">Promo Code <span className="text-accent">*</span></label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+              <input
+                className="w-full bg-paper border border-border rounded-lg pl-8 pr-3 py-2.5 text-sm font-body placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+                placeholder="e.g. #BWP0042"
+                value={promoCode}
+                onChange={e => { setPromoCode(e.target.value); setLinked(null); setSearchError(null) }}
+                onKeyDown={e => e.key === 'Enter' && handleSearch()}
+              />
+            </div>
+            <button onClick={handleSearch} disabled={searching || !promoCode.trim()}
+              className="px-4 py-2.5 bg-ink text-white text-sm font-body rounded-lg hover:bg-gray-800 disabled:opacity-40 transition-colors">
+              {searching ? <Loader2 size={13} className="animate-spin" /> : 'Link'}
+            </button>
+          </div>
+          {searchError && <p className="text-danger text-[11px] mt-1">{searchError}</p>}
+          {linked && (
+            <div className="mt-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-xs font-body text-emerald-800 flex items-center gap-2">
+              <CheckCircle size={12} className="text-success shrink-0" />
+              Linked: <span className="font-semibold">{linked.brand_names}</span>
+              {linked.promotion_name && <span className="text-emerald-600">· {linked.promotion_name}</span>}
+            </div>
+          )}
+        </div>
+
+        {/* Closure Date */}
+        <div>
+          <label className="text-[10px] font-mono uppercase text-muted mb-1.5 block">Date of Closure <span className="text-accent">*</span></label>
+          <input
+            type="date"
+            className="w-full bg-paper border border-border rounded-lg px-3 py-2.5 text-sm font-body focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
+            value={closureDate}
+            onChange={e => setClosureDate(e.target.value)}
+          />
+        </div>
+
+        {/* Remark */}
+        <div>
+          <label className="text-[10px] font-mono uppercase text-muted mb-1.5 block">Remark</label>
+          <textarea
+            className="w-full bg-paper border border-border rounded-lg px-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-accent/20 resize-none"
+            rows={2}
+            placeholder="Reason for closure, notes…"
+            value={remark}
+            onChange={e => setRemark(e.target.value)}
+          />
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 text-danger text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+            <AlertCircle size={14} /> {error}
+          </div>
+        )}
+
+        <button
+          onClick={handleSubmit}
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-2 bg-danger text-white font-body font-medium px-6 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-60 transition-colors text-sm">
+          {loading && <Loader2 size={14} className="animate-spin" />}
+          {loading ? 'Submitting…' : 'Submit Closure Request'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function NewRequest() {
   const navigate = useNavigate()
-  // 'entry-type' | 'offer-type' | 'replicate' | 'form'
   const [step, setStep] = useState('entry-type')
-  const [entryType, setEntryType] = useState(null)   // 'new' | 'replicate'
-  const [offerType, setOfferType] = useState(null)   // 'Promotion' | 'RSP Update'
+  const [entryType, setEntryType] = useState(null)
+  const [offerType, setOfferType] = useState(null)
   const [form, setForm] = useState({ ...BLANK_FORM })
   const [sourceId, setSourceId] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -212,7 +366,6 @@ export default function NewRequest() {
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
-  // ── Load brands by category ───────────────────────────────────────────────
   const [availableBrands, setAvailableBrands] = useState([])
   const [brandsLoading, setBrandsLoading] = useState(false)
 
@@ -225,6 +378,7 @@ export default function NewRequest() {
         setBrandsLoading(false)
       })
   }, [form.category])
+
   const addRange = () => setForm(f => ({ ...f, date_ranges: [...f.date_ranges, { ...BLANK_RANGE }] }))
   const removeRange = (i) => setForm(f => ({ ...f, date_ranges: f.date_ranges.filter((_, idx) => idx !== i) }))
   const setRange = (i, key, val) => setForm(f => ({
@@ -250,6 +404,7 @@ export default function NewRequest() {
     if (!form.approval_email) {
       setError('Please upload the brand approval screenshot.'); setLoading(false); return
     }
+
     const payload = {
       ...form,
       offer_type: offerType,
@@ -257,9 +412,46 @@ export default function NewRequest() {
       date_ranges: validRanges,
       date_of_entry: todayISO(),
     }
-    const { error: err } = await supabase.from('promo_requests').insert([payload])
+
+    const { error: err, data: inserted } = await supabase
+      .from('promo_requests').insert([payload]).select().single()
+
+    if (err) { setError(err.message); setLoading(false); return }
+
+    // #3 — If RSP Update and end date provided, automatically create a reversal entry
+    if (offerType === 'RSP Update' && validRanges.length > 0) {
+      const lastRange = validRanges[validRanges.length - 1]
+      if (lastRange.till) {
+        const reversalPayload = {
+          offer_type: 'RSP Update',
+          is_reversal: true,
+          linked_promo_id: inserted?.promo_request_id || '',
+          promotion_name: `RSP Reversal: ${form.promotion_name || form.brand_names}`,
+          promo_details: `Automatic reversal of RSP update. Execute on ${lastRange.till} to revert RSP for ${form.brand_names}.`,
+          brand_names: form.brand_names,
+          category: form.category,
+          poc_name: form.poc_name,
+          store: Array.isArray(form.store) ? form.store.join(', ') : form.store,
+          funded_by: form.funded_by,
+          // Reversal execution date = end date of original promo
+          date_ranges: [{ from: lastRange.till, till: lastRange.till }],
+          rsp_file_link: form.rsp_file_link || '',
+          rsp_file_name: form.rsp_file_name || '',
+          rsp_file_data: form.rsp_file_data || '',
+          approval_email: form.approval_email || '',
+          approval_file_name: form.approval_file_name || '',
+          remark: `Auto-created reversal for ${inserted?.promo_request_id || 'RSP update'}. Do not execute before ${lastRange.till}.`,
+          status: 'Pending',
+          current_status: 'Not Live',
+          date_of_entry: todayISO(),
+        }
+        await supabase.from('promo_requests').insert([reversalPayload])
+      }
+    }
+
     setLoading(false)
-    if (err) { setError(err.message) } else { setSuccess(true); setTimeout(() => navigate('/'), 2000) }
+    setSuccess(true)
+    setTimeout(() => navigate('/'), 2000)
   }
 
   if (success) return (
@@ -268,6 +460,9 @@ export default function NewRequest() {
         <CheckCircle className="text-success" size={32} />
       </div>
       <h2 className="font-display text-2xl font-bold text-ink mb-2">Request Submitted!</h2>
+      {offerType === 'RSP Update' && (
+        <p className="text-muted font-body text-sm mb-1">A reversal entry has been automatically created on the Promo Board.</p>
+      )}
       <p className="text-muted font-body text-sm">Taking you back to the board…</p>
     </div>
   )
@@ -277,8 +472,14 @@ export default function NewRequest() {
     <StepEntryType onChoose={(type) => {
       setEntryType(type)
       if (type === 'new') setStep('offer-type')
-      else setStep('replicate')
+      else if (type === 'replicate') setStep('replicate')
+      else if (type === 'closure') setStep('closure')
     }} />
+  )
+
+  // #4 — Promo Closure step
+  if (step === 'closure') return (
+    <StepPromoClosure onBack={() => setStep('entry-type')} />
   )
 
   if (step === 'replicate') return (
@@ -317,7 +518,6 @@ export default function NewRequest() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 fade-in">
-      {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button onClick={() => entryType === 'replicate' ? setStep('replicate') : setStep('offer-type')}
           className="flex items-center gap-1.5 text-sm text-muted hover:text-ink transition-colors">
@@ -328,7 +528,6 @@ export default function NewRequest() {
             <h1 className="font-display text-2xl font-bold text-ink">
               {sourceId ? `New Promo (based on ${sourceId})` : 'New Promo Request'}
             </h1>
-            {/* Offer type badge */}
             <span className={`text-[11px] font-mono px-2 py-0.5 rounded-full border ${
               isPromo ? 'bg-blue-50 text-info border-blue-200' : 'bg-emerald-50 text-success border-emerald-200'
             }`}>
@@ -338,12 +537,16 @@ export default function NewRequest() {
           <p className="text-xs font-body text-muted">
             {sourceId ? `Pre-filled from ${sourceId} — new Promo ID assigned on submit.` : 'Step 3 of 3 — Fill in the details below.'}
           </p>
+          {/* #3 — RSP reversal notice */}
+          {isRSP && (
+            <p className="text-xs font-body text-purple-600 mt-0.5">
+              ℹ A reversal entry will be auto-created on the board based on the end date you enter.
+            </p>
+          )}
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-
-        {/* Brand & Identity */}
         <Section title="Brand & Identity">
           <Field label="Category" required>
             <select className="input-field" required value={form.category}
@@ -356,23 +559,19 @@ export default function NewRequest() {
           <Field label="Brand Name(s)" required hint={
             !form.category ? 'Select a category first' :
             brandsLoading ? 'Loading brands…' :
-            availableBrands.length === 0 ? 'No brands found for this category — add them in the Brands tab' :
+            availableBrands.length === 0 ? 'No brands found — add them in the Brands tab' :
             'Select a brand'
           }>
             {availableBrands.length > 0 ? (
-              <select
-                className="input-field"
-                required
-                value={form.brand_names}
-                onChange={e => set('brand_names', e.target.value)}
-              >
+              <select className="input-field" required value={form.brand_names}
+                onChange={e => set('brand_names', e.target.value)}>
                 <option value="">Select brand…</option>
                 {availableBrands.map(b => <option key={b} value={b}>{b}</option>)}
               </select>
             ) : (
               <input className={`input-field ${!form.category ? 'opacity-50' : ''}`}
                 disabled={!form.category || brandsLoading}
-                placeholder={!form.category ? 'Select a category first' : 'No brands available — add in Brands tab'}
+                placeholder={!form.category ? 'Select a category first' : 'No brands available'}
                 value={form.brand_names} onChange={e => set('brand_names', e.target.value)} />
             )}
           </Field>
@@ -397,7 +596,6 @@ export default function NewRequest() {
             </Field>
           </div>
 
-          {/* % split — only when Both */}
           {isBoth && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
               <p className="text-xs font-display font-semibold text-warning">Funding Split — must total 100%</p>
@@ -423,9 +621,13 @@ export default function NewRequest() {
           </Field>
         </Section>
 
-        {/* Date Ranges */}
         <Section title="Date Ranges">
           <p className="text-xs text-muted -mt-2">Add multiple rows if the promo runs in separate periods.</p>
+          {isRSP && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 text-xs text-purple-700">
+              <strong>RSP Update note:</strong> The end date ("Valid Till") of your last date range will be used as the RSP reversal execution date. A pending reversal entry will appear on the board.
+            </div>
+          )}
           <div className="space-y-3">
             {form.date_ranges.map((range, i) => (
               <div key={i} className="border border-border rounded-lg p-3 bg-paper/40">
@@ -442,11 +644,19 @@ export default function NewRequest() {
                     <input type="date" className="input-field" required
                       value={range.from} onChange={e => setRange(i, 'from', e.target.value)} />
                   </Field>
-                  <Field label="Valid Till" required>
-                    <input type="date" className="input-field" required
-                      value={range.till} onChange={e => setRange(i, 'till', e.target.value)} />
+                  <Field label={isRSP && i === form.date_ranges.length - 1 ? 'Valid Till (Reversal Date)' : 'Valid Till'} required>
+                    <input type="date"
+                      className={`input-field ${isRSP && i === form.date_ranges.length - 1 ? 'border-purple-300 focus:ring-purple-200' : ''}`}
+                      required
+                      value={range.till}
+                      onChange={e => setRange(i, 'till', e.target.value)} />
                   </Field>
                 </div>
+                {isRSP && i === form.date_ranges.length - 1 && range.till && (
+                  <p className="text-[11px] text-purple-600 mt-1.5">
+                    ↩ RSP reversal will be auto-scheduled for: <strong>{range.till}</strong>
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -456,7 +666,6 @@ export default function NewRequest() {
           </button>
         </Section>
 
-        {/* Offer Details */}
         <Section title={`Offer Details — ${offerType}`}>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Offline / Online" required>
@@ -484,7 +693,6 @@ export default function NewRequest() {
             </select>
           </Field>
 
-          {/* Discount on MRP or RSP — Promotion only */}
           {isPromo && <Field label="Discount on MRP or RSP" required>
             <div className="flex gap-3">
               {['MRP', 'RSP'].map(opt => (
@@ -493,22 +701,15 @@ export default function NewRequest() {
                     ? 'border-accent bg-accent/5 text-accent'
                     : 'border-border bg-white text-muted hover:border-ink/40'
                 }`}>
-                  <input
-                    type="radio"
-                    name="discount_on"
-                    value={opt}
-                    checked={form.discount_on === opt}
-                    onChange={() => set('discount_on', opt)}
-                    className="hidden"
-                    required
-                  />
+                  <input type="radio" name="discount_on" value={opt}
+                    checked={form.discount_on === opt} onChange={() => set('discount_on', opt)}
+                    className="hidden" required />
                   {opt}
                 </label>
               ))}
             </div>
           </Field>}
 
-          {/* SKU CSV upload — always show for Promotion */}
           {isPromo && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
               <p className="text-xs font-display font-semibold text-info">Upload SKU file</p>
@@ -526,7 +727,6 @@ export default function NewRequest() {
           )}
         </Section>
 
-        {/* Files & Approvals */}
         <Section title="Files & Approvals">
           <Field label="Brand Approval Screenshot" required hint="Upload a screenshot of the brand approval email (JPG, PNG, PDF)">
             <ApprovalUpload
@@ -536,10 +736,7 @@ export default function NewRequest() {
                 set('approval_file_name', fileName)
                 set('approval_email', url)
               }}
-              onClear={() => {
-                set('approval_file_name', '')
-                set('approval_email', '')
-              }}
+              onClear={() => { set('approval_file_name', ''); set('approval_email', '') }}
             />
           </Field>
 
@@ -587,7 +784,6 @@ export default function NewRequest() {
   )
 }
 
-// ─── Reusable choice card ─────────────────────────────────────────────────────
 function ChoiceCard({ icon, iconBg, title, desc, onClick, sample }) {
   return (
     <div className="bg-white border-2 border-border hover:border-accent rounded-xl p-6 transition-all group flex flex-col">
@@ -608,7 +804,6 @@ function ChoiceCard({ icon, iconBg, title, desc, onClick, sample }) {
   )
 }
 
-// ─── CSV Upload Field with validation ────────────────────────────────────────
 function CsvUploadField({ offerType, value, onParsed, onClear }) {
   const [error, setError] = useState(null)
   const [preview, setPreview] = useState([])
@@ -633,25 +828,19 @@ function CsvUploadField({ offerType, value, onParsed, onClear }) {
       try {
         const lines = evt.target.result.split('\n').filter(l => l.trim())
         if (lines.length < 2) { setError('File is empty or has no data rows.'); return }
-
         const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''))
-
         const missing = REQUIRED.filter(r => !headers.includes(r))
         if (missing.length > 0) {
           setError(`Missing required columns: ${missing.join(', ')}. Please use the sample format.`)
           return
         }
-
         const rows = lines.slice(1).map(line => {
           const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''))
           return headers.reduce((obj, h, i) => ({ ...obj, [h]: vals[i] || '' }), {})
         }).filter(r => r['Barcode'])
-
         if (rows.length === 0) { setError('No valid data rows found in the file.'); return }
-
         setPreview(rows.slice(0, 3))
 
-        // Upload to Supabase Storage for a public URL
         const fileName = `promos/${Date.now()}_${file.name.replace(/\s+/g, '_')}`
         let publicUrl = ''
         const { error: uploadError } = await supabase.storage
@@ -661,7 +850,6 @@ function CsvUploadField({ offerType, value, onParsed, onClear }) {
             .from('promo-files').getPublicUrl(fileName)
           publicUrl = url
         }
-
         onParsed(file.name, rows, publicUrl)
       } catch {
         setError('Could not read the file. Make sure it is a valid CSV.')
@@ -702,14 +890,12 @@ function CsvUploadField({ offerType, value, onParsed, onClear }) {
           </button>
         </div>
       )}
-
       {error && (
         <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
           <AlertCircle size={13} className="text-danger shrink-0 mt-0.5" />
           <p className="text-xs font-body text-danger">{error}</p>
         </div>
       )}
-
       {preview.length > 0 && (
         <div className="overflow-x-auto rounded border border-blue-200">
           <table className="min-w-full text-[10px] font-mono">
@@ -731,7 +917,6 @@ function CsvUploadField({ offerType, value, onParsed, onClear }) {
   )
 }
 
-// ─── Approval screenshot upload ───────────────────────────────────────────────
 function ApprovalUpload({ value, url, onUploaded, onClear }) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState(null)
@@ -743,7 +928,6 @@ function ApprovalUpload({ value, url, onUploaded, onClear }) {
     const file = e.target.files?.[0]
     if (!file) return
     setError(null)
-
     if (!ACCEPTED.includes(file.type)) {
       setError('Only JPG, PNG, WEBP or PDF files are accepted.')
       return
@@ -752,25 +936,13 @@ function ApprovalUpload({ value, url, onUploaded, onClear }) {
       setError(`File too large. Maximum size is ${MAX_MB}MB.`)
       return
     }
-
     setUploading(true)
     const fileName = `promos/${Date.now()}_${file.name.replace(/\s+/g, '_')}`
-
     const { data, error: uploadError } = await supabase.storage
-      .from('promo-files')
-      .upload(fileName, file, { upsert: false })
-
+      .from('promo-files').upload(fileName, file, { upsert: false })
     setUploading(false)
-
-    if (uploadError) {
-      setError(`Upload failed: ${uploadError.message}`)
-      return
-    }
-
-    const { data: { publicUrl } } = supabase.storage
-      .from('promo-files')
-      .getPublicUrl(fileName)
-
+    if (uploadError) { setError(`Upload failed: ${uploadError.message}`); return }
+    const { data: { publicUrl } } = supabase.storage.from('promo-files').getPublicUrl(fileName)
     onUploaded(file.name, publicUrl)
   }
 
@@ -808,7 +980,6 @@ function ApprovalUpload({ value, url, onUploaded, onClear }) {
           </button>
         </div>
       )}
-
       {error && (
         <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
           <AlertCircle size={13} className="text-danger shrink-0 mt-0.5" />

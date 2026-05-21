@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { exportCSV, todayISO, fmtDate } from '../lib/constants.jsx'
-import { Download, RefreshCw, Loader2, TrendingUp, TrendingDown, AlertTriangle, Sparkles } from 'lucide-react'
+import { Download, Loader2, TrendingUp, AlertTriangle, Sparkles, Star } from 'lucide-react'
 
 const CATEGORIES = [
   'All Categories',
@@ -16,7 +16,6 @@ const CATEGORIES = [
   'Streetwear',
 ]
 
-// Map old category names to new ones
 const CAT_MAP = {
   'Beauty and Personal Care': 'Beauty & Personal Care',
   'Fashion (Fashion Accessories, Clothing, Jewellery)': 'Clothing',
@@ -74,34 +73,42 @@ export default function Analytics() {
   const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split('T')[0])
   const [aiInsight, setAiInsight] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
+  // #2 — top brands list from Supabase
+  const [topBrands, setTopBrands] = useState([])
+  const [topBrandsFilter, setTopBrandsFilter] = useState(false)
   const today = todayISO()
 
   useEffect(() => {
     async function fetchAll() {
-      let historical = []
+      let hist = []
       let from = 0
       while (true) {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('historical_promos')
           .select('brand_names,category,valid_from,valid_till,promotion_details,promotion_name')
           .range(from, from + 999)
         if (!data || data.length === 0) break
-        historical = [...historical, ...data]
+        hist = [...hist, ...data]
         if (data.length < 1000) break
         from += 1000
       }
-      const { data: current } = await supabase
+      const { data: cur } = await supabase
         .from('promo_requests')
         .select('brand_names,category,date_ranges,promo_details,promotion_name')
         .limit(5000)
-      setHistorical(historical)
-      setCurrent(current || [])
+      // #2 — fetch top brands from Supabase
+      const { data: tb } = await supabase
+        .from('top_brands')
+        .select('brand_name')
+        .order('brand_name')
+      setHistorical(hist)
+      setCurrent(cur || [])
+      setTopBrands((tb || []).map(r => r.brand_name.toLowerCase().trim()))
       setLoading(false)
     }
     fetchAll()
   }, [])
 
-  // Combine all promos
   const allPromos = [
     ...historical.map(r => ({
       brand: r.brand_names || '',
@@ -136,11 +143,14 @@ export default function Analytics() {
     ? storeFiltered
     : storeFiltered.filter(r => r.category === catFilter)
 
+  // #2 — helper: is this brand a top brand?
+  const isTopBrand = (brand) =>
+    topBrands.includes((brand || '').toLowerCase().trim())
+
   // ── Table 1: Last 8 weeks × Category ─────────────────────────────────────
   const last8Weeks = getLastNWeeks(8)
 
   function isActiveInWeek(promo, weekLabel) {
-    // find monday of that week
     const [wPart, year] = weekLabel.split(' ')
     const weekNum = parseInt(wPart.replace('W', ''))
     const jan1 = new Date(parseInt(year), 0, 1)
@@ -162,7 +172,15 @@ export default function Analytics() {
     return { category: cat, weeks, total: weeks.reduce((a, w) => a + w.count, 0) }
   }).filter(r => r.total > 0).sort((a, b) => b.total - a.total)
 
-  // ── Table 2: Brand × Month offer details ─────────────────────────────────
+  // ── #1: Unique brands per week ────────────────────────────────────────────
+  const uniqueBrandsPerWeek = last8Weeks.map(w => {
+    const brands = new Set(
+      allPromos.filter(p => isActiveInWeek(p, w)).map(p => p.brand.trim().toLowerCase())
+    )
+    return { week: w, count: brands.size }
+  })
+
+  // ── Table 2: Brand × Month ────────────────────────────────────────────────
   const last6Months = []
   for (let i = monthFilter - 1; i >= 0; i--) {
     const d = new Date()
@@ -174,14 +192,12 @@ export default function Analytics() {
   filtered.forEach(r => {
     const month = getMonthKey(r.from)
     if (!month) return
-    // Normalize brand name: trim + title case for dedup
     const brand = r.brand.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
     if (!brandMonthMap[brand]) brandMonthMap[brand] = {}
     if (!brandMonthMap[brand][month]) brandMonthMap[brand][month] = new Set()
     if (r.details) brandMonthMap[brand][month].add(r.details.trim())
   })
 
-  // Convert Sets to arrays
   Object.keys(brandMonthMap).forEach(brand => {
     Object.keys(brandMonthMap[brand]).forEach(month => {
       brandMonthMap[brand][month] = [...brandMonthMap[brand][month]]
@@ -193,7 +209,7 @@ export default function Analytics() {
     .map(([brand, months]) => ({ brand, months }))
     .sort((a, b) => a.brand.localeCompare(b.brand))
 
-  // ── Table 3: Critical brands — active last month, not this month ──────────
+  // ── Table 3: Critical brands ──────────────────────────────────────────────
   const thisMonth = getMonthKey(today)
   const lastMonth = getMonthKey(new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString())
 
@@ -205,7 +221,7 @@ export default function Analytics() {
     filtered.filter(r => getMonthKey(r.from) === thisMonth || getMonthKey(r.till) === thisMonth)
       .map(r => r.brand)
   )
-  const droppedBrands = [...lastMonthBrands].filter(b => !thisMonthBrands.has(b))
+  const droppedBrandsAll = [...lastMonthBrands].filter(b => !thisMonthBrands.has(b))
     .map(b => {
       const promos = filtered.filter(r => r.brand === b)
       const last = promos.sort((a, b) => new Date(b.till) - new Date(a.till))[0]
@@ -213,7 +229,45 @@ export default function Analytics() {
     })
     .sort((a, b) => a.category.localeCompare(b.category))
 
-  // ── Table 4: Brand leaderboard ────────────────────────────────────────────
+  // #2 — apply top brands filter to critical brands
+  const droppedBrands = topBrandsFilter
+    ? droppedBrandsAll.filter(b => isTopBrand(b.brand))
+    : droppedBrandsAll
+
+  // ── Ending in next 7 days ─────────────────────────────────────────────────
+  const in7Days = new Date()
+  in7Days.setDate(in7Days.getDate() + 7)
+  const in7DaysStr = in7Days.toISOString().split('T')[0]
+
+  const endingSoonMapAll = {}
+  filtered.forEach(r => {
+    if (!r.till || r.till < today || r.till > in7DaysStr) return
+    const key = r.brand + '|' + r.till
+    if (!endingSoonMapAll[key]) endingSoonMapAll[key] = { brand: r.brand, category: r.category, till: r.till, details: [] }
+    if (r.details && !endingSoonMapAll[key].details.includes(r.details.trim()))
+      endingSoonMapAll[key].details.push(r.details.trim())
+  })
+  const endingSoonAll = Object.values(endingSoonMapAll).sort((a, b) => a.till.localeCompare(b.till))
+
+  // #2 — apply top brands filter to ending soon
+  const endingSoonList = topBrandsFilter
+    ? endingSoonAll.filter(r => isTopBrand(r.brand))
+    : endingSoonAll
+
+  // ── Day view ──────────────────────────────────────────────────────────────
+  const dayPromos = filtered
+    .filter(r => r.from && r.till && r.from <= selectedDay && r.till >= selectedDay)
+    .reduce((acc, r) => {
+      const key = r.brand + '|' + r.category
+      if (!acc[key]) acc[key] = { brand: r.brand, category: r.category, offers: [] }
+      if (r.details && !acc[key].offers.includes(r.details.trim()))
+        acc[key].offers.push(r.details.trim())
+      return acc
+    }, {})
+  const dayPromosList = Object.values(dayPromos)
+    .sort((a, b) => a.category.localeCompare(b.category) || a.brand.localeCompare(b.brand))
+
+  // ── Brand leaderboard ─────────────────────────────────────────────────────
   const brandStats = {}
   filtered.forEach(r => {
     if (!brandStats[r.brand]) brandStats[r.brand] = { brand: r.brand, category: r.category, count: 0, lastDate: '' }
@@ -229,14 +283,12 @@ export default function Analytics() {
   const getAIInsights = async () => {
     setAiLoading(true)
     setAiInsight('')
-
     const summary = {
       totalPromos: allPromos.length,
-      droppedBrands: droppedBrands.slice(0, 10).map(b => `${b.brand} (${b.category}, last: ${fmtDate(b.lastTill)})`),
+      droppedBrands: droppedBrandsAll.slice(0, 10).map(b => `${b.brand} (${b.category}, last: ${fmtDate(b.lastTill)})`),
       topBrands: leaderboard.slice(0, 10).map(b => `${b.brand}: ${b.count} promos`),
       categoryTotals: weeklyTable.map(r => `${r.category}: ${r.total} active weeks`),
     }
-
     const prompt = `You are a retail promotions analyst for Broadway, a multi-brand retail store in India.
 
 Here is the promo data summary:
@@ -267,43 +319,17 @@ Keep it concise and actionable. Use bullet points.`
     setAiLoading(false)
   }
 
-  // ── Ending in next 7 days ────────────────────────────────────────────────────
-  const in7Days = new Date()
-  in7Days.setDate(in7Days.getDate() + 7)
-  const in7DaysStr = in7Days.toISOString().split('T')[0]
-
-  const endingSoonMap = {}
-  filtered.forEach(r => {
-    if (!r.till || r.till < today || r.till > in7DaysStr) return
-    const key = r.brand + '|' + r.till
-    if (!endingSoonMap[key]) endingSoonMap[key] = { brand: r.brand, category: r.category, till: r.till, details: [] }
-    if (r.details && !endingSoonMap[key].details.includes(r.details.trim())) 
-      endingSoonMap[key].details.push(r.details.trim())
-  })
-  const endingSoonList = Object.values(endingSoonMap).sort((a, b) => a.till.localeCompare(b.till))
-
-  // ── Day view ─────────────────────────────────────────────────────────────────
-  const dayPromos = filtered
-    .filter(r => r.from && r.till && r.from <= selectedDay && r.till >= selectedDay)
-    .reduce((acc, r) => {
-      const key = r.brand + '|' + r.category
-      if (!acc[key]) acc[key] = { brand: r.brand, category: r.category, offers: [] }
-      if (r.details && !acc[key].offers.includes(r.details.trim()))
-        acc[key].offers.push(r.details.trim())
-      return acc
-    }, {})
-  const dayPromosList = Object.values(dayPromos)
-    .sort((a, b) => a.category.localeCompare(b.category) || a.brand.localeCompare(b.brand))
-
   const tabs = [
     { id: 'weekly', label: 'Weekly Activity' },
     { id: 'monthly', label: 'Brand × Month' },
     { id: 'dropped', label: 'Critical Brands' },
-
     { id: 'dayview', label: '📅 Day View' },
     { id: 'ending', label: '⏰ Ending Soon' },
     { id: 'ai', label: '✨ AI Insights' },
   ]
+
+  // #2 — show top brands toggle only on tabs that support it
+  const showTopBrandsToggle = tab === 'dropped' || tab === 'ending'
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 fade-in">
@@ -316,7 +342,7 @@ Keep it concise and actionable. Use bullet points.`
         </div>
       </div>
 
-      {/* Category filter */}
+      {/* Filters */}
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         <span className="text-xs font-mono text-muted uppercase tracking-widest">Filter</span>
         <select
@@ -331,12 +357,27 @@ Keep it concise and actionable. Use bullet points.`
         >
           {STORES.map(s => <option key={s}>{s}</option>)}
         </select>
+
+        {/* #2 — Top Brands toggle (only on Critical / Ending Soon) */}
+        {showTopBrandsToggle && (
+          <button
+            onClick={() => setTopBrandsFilter(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-body border transition-colors ${
+              topBrandsFilter
+                ? 'bg-amber-500 text-white border-amber-500'
+                : 'bg-white text-muted border-border hover:text-ink'
+            }`}
+          >
+            <Star size={13} className={topBrandsFilter ? 'fill-white' : ''} />
+            Top Brands {topBrandsFilter ? 'ON' : 'OFF'}
+          </button>
+        )}
       </div>
 
       {/* Tab switcher */}
       <div className="flex gap-1 bg-white border border-border rounded-xl p-1 w-fit mb-6 flex-wrap">
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
+          <button key={t.id} onClick={() => { setTab(t.id); setTopBrandsFilter(false) }}
             className={`px-4 py-2 rounded-lg text-sm font-body font-medium transition-colors whitespace-nowrap ${
               tab === t.id ? 'bg-ink text-white' : 'text-muted hover:text-ink'
             }`}>
@@ -353,51 +394,86 @@ Keep it concise and actionable. Use bullet points.`
         <>
           {/* Table 1: Weekly Activity */}
           {tab === 'weekly' && (
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-display font-bold text-xl text-ink">
-                  Category Activity — Last 8 Weeks
-                </h2>
-                <button onClick={() => exportCSV(
-                  weeklyTable.map(r => ({ category: r.category, ...r.weeks.reduce((a,w) => ({...a,[w.week]:w.count}),{}), total: r.total })),
-                  'weekly-activity.csv'
-                )} className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
-                  <Download size={12} /> Export
-                </button>
-              </div>
-              <div className="overflow-x-auto rounded-xl border border-border bg-white">
-                <table className="min-w-full text-sm font-body">
-                  <thead className="bg-paper border-b border-border">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted sticky left-0 bg-paper">Category</th>
-                      {last8Weeks.map(w => (
-                        <th key={w} className="px-3 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted whitespace-nowrap">{w}</th>
+            <div className="space-y-6">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="font-display font-bold text-xl text-ink">
+                    Category Activity — Last 8 Weeks
+                  </h2>
+                  <button onClick={() => exportCSV(
+                    weeklyTable.map(r => ({ category: r.category, ...r.weeks.reduce((a,w) => ({...a,[w.week]:w.count}),{}), total: r.total })),
+                    'weekly-activity.csv'
+                  )} className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
+                    <Download size={12} /> Export
+                  </button>
+                </div>
+                <div className="overflow-x-auto rounded-xl border border-border bg-white">
+                  <table className="min-w-full text-sm font-body">
+                    <thead className="bg-paper border-b border-border">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted sticky left-0 bg-paper">Category</th>
+                        {last8Weeks.map(w => (
+                          <th key={w} className="px-3 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted whitespace-nowrap">{w}</th>
+                        ))}
+                        <th className="px-3 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {weeklyTable.map(row => (
+                        <tr key={row.category} className="border-b border-border last:border-0 hover:bg-paper/40">
+                          <td className="px-4 py-3 font-medium text-ink sticky left-0 bg-white">{row.category}</td>
+                          {row.weeks.map(w => (
+                            <td key={w.week} className="px-3 py-3 text-center">
+                              {w.count > 0 ? (
+                                <span className={`inline-block min-w-[24px] rounded px-1.5 py-0.5 text-xs font-mono font-bold ${
+                                  w.count >= 10 ? 'bg-emerald-100 text-emerald-700' :
+                                  w.count >= 5 ? 'bg-blue-100 text-blue-700' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>{w.count}</span>
+                              ) : (
+                                <span className="text-border">—</span>
+                              )}
+                            </td>
+                          ))}
+                          <td className="px-3 py-3 text-center font-mono font-bold text-ink">{row.total}</td>
+                        </tr>
                       ))}
-                      <th className="px-3 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {weeklyTable.map(row => (
-                      <tr key={row.category} className="border-b border-border last:border-0 hover:bg-paper/40">
-                        <td className="px-4 py-3 font-medium text-ink sticky left-0 bg-white">{row.category}</td>
-                        {row.weeks.map(w => (
-                          <td key={w.week} className="px-3 py-3 text-center">
-                            {w.count > 0 ? (
-                              <span className={`inline-block min-w-[24px] rounded px-1.5 py-0.5 text-xs font-mono font-bold ${
-                                w.count >= 10 ? 'bg-emerald-100 text-emerald-700' :
-                                w.count >= 5 ? 'bg-blue-100 text-blue-700' :
-                                'bg-gray-100 text-gray-600'
-                              }`}>{w.count}</span>
-                            ) : (
-                              <span className="text-border">—</span>
-                            )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* #1 — Unique brands per week */}
+              <div>
+                <h2 className="font-display font-bold text-xl text-ink mb-3">
+                  Unique Brands Active — Per Week
+                </h2>
+                <div className="overflow-x-auto rounded-xl border border-border bg-white">
+                  <table className="min-w-full text-sm font-body">
+                    <thead className="bg-paper border-b border-border">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted sticky left-0 bg-paper">Metric</th>
+                        {last8Weeks.map(w => (
+                          <th key={w} className="px-3 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted whitespace-nowrap">{w}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="hover:bg-paper/40">
+                        <td className="px-4 py-3 font-medium text-ink sticky left-0 bg-white">Unique Brands</td>
+                        {uniqueBrandsPerWeek.map(({ week, count }) => (
+                          <td key={week} className="px-3 py-3 text-center">
+                            <span className={`inline-block min-w-[28px] rounded px-1.5 py-0.5 text-xs font-mono font-bold ${
+                              count >= 30 ? 'bg-emerald-100 text-emerald-700' :
+                              count >= 15 ? 'bg-blue-100 text-blue-700' :
+                              count > 0 ? 'bg-gray-100 text-gray-600' : ''
+                            }`}>{count > 0 ? count : <span className="text-border">—</span>}</span>
                           </td>
                         ))}
-                        <td className="px-3 py-3 text-center font-mono font-bold text-ink">{row.total}</td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -448,7 +524,12 @@ Keep it concise and actionable. Use bullet points.`
                   <tbody>
                     {brandMonthTable.map(row => (
                       <tr key={row.brand} className="border-b border-border last:border-0 hover:bg-paper/40">
-                        <td className="px-4 py-3 font-medium text-ink sticky left-0 bg-white">{row.brand}</td>
+                        <td className="px-4 py-3 font-medium text-ink sticky left-0 bg-white">
+                          <span className="flex items-center gap-1.5">
+                            {isTopBrand(row.brand) && <Star size={10} className="text-amber-400 fill-amber-400 shrink-0" />}
+                            {row.brand}
+                          </span>
+                        </td>
                         {last6Months.map(m => (
                           <td key={m} className="px-3 py-3 text-xs text-muted max-w-[180px]">
                             {row.months[m] ? (
@@ -480,7 +561,10 @@ Keep it concise and actionable. Use bullet points.`
                     <AlertTriangle size={20} className="text-warning" />
                     Critical Brands — Active Last Month, Not This Month
                   </h2>
-                  <p className="text-sm text-muted mt-1">{droppedBrands.length} brands need follow-up</p>
+                  <p className="text-sm text-muted mt-1">
+                    {droppedBrands.length} brands need follow-up
+                    {topBrandsFilter && <span className="ml-2 text-amber-600 font-medium">· Top Brands only</span>}
+                  </p>
                 </div>
                 <button onClick={() => exportCSV(droppedBrands, 'critical-brands.csv')}
                   className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
@@ -489,7 +573,11 @@ Keep it concise and actionable. Use bullet points.`
               </div>
               {droppedBrands.length === 0 ? (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl py-12 text-center">
-                  <p className="text-success font-body">🎉 All active brands from last month are still running promos this month!</p>
+                  <p className="text-success font-body">
+                    {topBrandsFilter
+                      ? '🎉 All top brands from last month are still running promos this month!'
+                      : '🎉 All active brands from last month are still running promos this month!'}
+                  </p>
                 </div>
               ) : (
                 <div className="overflow-x-auto rounded-xl border border-border bg-white">
@@ -504,8 +592,13 @@ Keep it concise and actionable. Use bullet points.`
                     </thead>
                     <tbody>
                       {droppedBrands.map((b, i) => (
-                        <tr key={i} className="border-b border-border last:border-0 hover:bg-amber-50/30">
-                          <td className="px-4 py-3 font-medium text-ink">{b.brand}</td>
+                        <tr key={i} className={`border-b border-border last:border-0 hover:bg-amber-50/30 ${isTopBrand(b.brand) ? 'bg-amber-50/20' : ''}`}>
+                          <td className="px-4 py-3 font-medium text-ink">
+                            <span className="flex items-center gap-1.5">
+                              {isTopBrand(b.brand) && <Star size={11} className="text-amber-400 fill-amber-400 shrink-0" />}
+                              {b.brand}
+                            </span>
+                          </td>
                           <td className="px-4 py-3 text-muted">{b.category}</td>
                           <td className="px-4 py-3 font-mono text-xs text-danger">{fmtDate(b.lastTill)}</td>
                           <td className="px-4 py-3 text-xs text-muted max-w-[200px] truncate">{b.lastDetails || '—'}</td>
@@ -515,52 +608,6 @@ Keep it concise and actionable. Use bullet points.`
                   </table>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Table 4: Leaderboard */}
-          {tab === 'leaderboard' && (
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-display font-bold text-xl text-ink flex items-center gap-2">
-                  <TrendingUp size={20} className="text-success" />
-                  Brand Leaderboard — Top 50 by Promo Volume
-                </h2>
-                <button onClick={() => exportCSV(leaderboard, 'brand-leaderboard.csv')}
-                  className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
-                  <Download size={12} /> Export
-                </button>
-              </div>
-              <div className="overflow-x-auto rounded-xl border border-border bg-white">
-                <table className="min-w-full text-sm font-body">
-                  <thead className="bg-paper border-b border-border">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted w-10">#</th>
-                      <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Brand</th>
-                      <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Category</th>
-                      <th className="px-4 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted">Total Promos</th>
-                      <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Last Promo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leaderboard.map((b, i) => (
-                      <tr key={i} className="border-b border-border last:border-0 hover:bg-paper/40">
-                        <td className="px-4 py-3 font-mono text-muted text-xs">{i + 1}</td>
-                        <td className="px-4 py-3 font-medium text-ink">{b.brand}</td>
-                        <td className="px-4 py-3 text-muted">{b.category}</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={`inline-block px-2 py-0.5 rounded font-mono text-xs font-bold ${
-                            b.count >= 20 ? 'bg-emerald-100 text-emerald-700' :
-                            b.count >= 10 ? 'bg-blue-100 text-blue-700' :
-                            'bg-gray-100 text-gray-600'
-                          }`}>{b.count}</span>
-                        </td>
-                        <td className="px-4 py-3 font-mono text-xs text-muted">{fmtDate(b.lastDate)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
             </div>
           )}
 
@@ -585,7 +632,6 @@ Keep it concise and actionable. Use bullet points.`
                   </button>
                 </div>
               </div>
-
               {dayPromosList.length === 0 ? (
                 <div className="bg-paper border border-border rounded-xl py-12 text-center">
                   <p className="text-muted font-body">No promos live on {fmtDate(selectedDay)}.</p>
@@ -629,7 +675,10 @@ Keep it concise and actionable. Use bullet points.`
                   <h2 className="font-display font-bold text-xl text-ink flex items-center gap-2">
                     ⏰ Promos Ending in Next 7 Days
                   </h2>
-                  <p className="text-sm text-muted mt-1">{endingSoonList.length} promos ending between today and {fmtDate(in7DaysStr)}</p>
+                  <p className="text-sm text-muted mt-1">
+                    {endingSoonList.length} promos ending between today and {fmtDate(in7DaysStr)}
+                    {topBrandsFilter && <span className="ml-2 text-amber-600 font-medium">· Top Brands only</span>}
+                  </p>
                 </div>
                 <button onClick={() => exportCSV(endingSoonList.map(r => ({...r, details: r.details.join(' | ')})), 'ending-soon.csv')}
                   className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
@@ -656,7 +705,12 @@ Keep it concise and actionable. Use bullet points.`
                         const daysLeft = Math.ceil((new Date(r.till) - new Date(today)) / 86400000)
                         return (
                           <tr key={i} className={`border-b border-border last:border-0 hover:bg-paper/40 ${daysLeft <= 2 ? 'bg-red-50/30' : daysLeft <= 4 ? 'bg-amber-50/30' : ''}`}>
-                            <td className="px-4 py-3 font-medium text-ink">{r.brand}</td>
+                            <td className="px-4 py-3 font-medium text-ink">
+                              <span className="flex items-center gap-1.5">
+                                {isTopBrand(r.brand) && <Star size={11} className="text-amber-400 fill-amber-400 shrink-0" />}
+                                {r.brand}
+                              </span>
+                            </td>
                             <td className="px-4 py-3 text-muted">{r.category}</td>
                             <td className="px-4 py-3">
                               <span className={`font-mono text-xs font-bold ${daysLeft <= 2 ? 'text-danger' : daysLeft <= 4 ? 'text-warning' : 'text-ink'}`}>
@@ -693,7 +747,6 @@ Keep it concise and actionable. Use bullet points.`
                   {aiLoading ? 'Analyzing…' : 'Generate Insights'}
                 </button>
               </div>
-
               {!aiInsight && !aiLoading && (
                 <div className="bg-white border border-border rounded-xl py-16 text-center">
                   <Sparkles size={28} className="mx-auto mb-3 text-accent opacity-50" />
@@ -701,14 +754,12 @@ Keep it concise and actionable. Use bullet points.`
                   <p className="font-body text-muted text-xs mt-1">Analyzes {allPromos.length.toLocaleString()} promos across all brands and categories.</p>
                 </div>
               )}
-
               {aiLoading && (
                 <div className="bg-white border border-border rounded-xl py-16 text-center">
                   <Loader2 size={28} className="mx-auto mb-3 text-accent animate-spin" />
                   <p className="font-body text-muted text-sm">Analyzing your promo data…</p>
                 </div>
               )}
-
               {aiInsight && !aiLoading && (
                 <div className="bg-white border border-border rounded-xl p-6">
                   <div className="prose prose-sm max-w-none font-body text-ink whitespace-pre-wrap leading-relaxed">

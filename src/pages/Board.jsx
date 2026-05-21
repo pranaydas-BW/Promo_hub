@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react'
-
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import {
@@ -7,8 +6,29 @@ import {
   STATUS_OPTIONS, CURRENT_STATUS_OPTIONS, SHOPIFY_STATUS_OPTIONS,
   CATEGORIES, STATUS_STYLES, fmtDate, exportCSV,
 } from '../lib/constants.jsx'
-import { Search, RefreshCw, Plus, ChevronDown, ExternalLink, Loader2, Filter, Download } from 'lucide-react'
+import { Search, RefreshCw, Plus, ChevronDown, ExternalLink, Loader2, Filter, Download, RotateCcw } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
+
+// Get the earliest start date from date_ranges
+function getStartDate(r) {
+  const ranges = Array.isArray(r.date_ranges) ? r.date_ranges : []
+  const dates = ranges.map(dr => dr.from).filter(Boolean).sort()
+  return dates[0] || r.date_of_entry || r.created_at?.split('T')[0] || ''
+}
+
+// Group rows by start date, sorted ascending
+function groupByStartDate(rows) {
+  const groups = {}
+  rows.forEach(r => {
+    const d = getStartDate(r)
+    if (!groups[d]) groups[d] = []
+    groups[d].push(r)
+  })
+  // Sort groups by date ascending, within each group keep submission order (already ordered by created_at desc from query)
+  return Object.entries(groups)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, items]) => ({ date, items }))
+}
 
 export default function Board() {
   const { isAdmin } = useAuth()
@@ -50,6 +70,9 @@ export default function Board() {
       (fCategory === 'All' || r.category === fCategory) &&
       (fCurrent === 'All' || r.current_status === fCurrent)
   })
+
+  // #5 — group filtered rows by start date
+  const groupedRows = groupByStartDate(filtered)
 
   const counts = STATUS_OPTIONS.reduce((a, s) => ({ ...a, [s]: rows.filter(r => r.status === s).length }), {})
 
@@ -152,14 +175,34 @@ export default function Board() {
           <p className="text-sm">No requests match your filters.</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map(r => (
-            <PromoRow key={r.id} row={r}
-              expanded={expandedId === r.id}
-              onToggle={() => setExpandedId(expandedId === r.id ? null : r.id)}
-              onPatch={patch} updating={updatingId === r.id}
-              isAdmin={isAdmin}
-              allRows={rows} />
+        // #5 — Date-grouped board view
+        <div className="space-y-6">
+          {groupedRows.map(({ date, items }) => (
+            <div key={date}>
+              {/* Date group header */}
+              <div className="flex items-center gap-3 mb-2">
+                <div className="flex items-center gap-2 bg-ink text-white px-3 py-1 rounded-full">
+                  <span className="text-[11px] font-mono font-bold tracking-wider">
+                    {date ? fmtDate(date) : 'No Date'}
+                  </span>
+                  <span className="text-[10px] opacity-60">·</span>
+                  <span className="text-[10px] font-mono opacity-70">{items.length} promo{items.length > 1 ? 's' : ''}</span>
+                </div>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+
+              {/* Rows for this date */}
+              <div className="space-y-2">
+                {items.map(r => (
+                  <PromoRow key={r.id} row={r}
+                    expanded={expandedId === r.id}
+                    onToggle={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                    onPatch={patch} updating={updatingId === r.id}
+                    isAdmin={isAdmin}
+                    allRows={rows} />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -171,21 +214,75 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
   const ranges = Array.isArray(r.date_ranges) ? r.date_ranges : []
   const first = ranges[0] || {}
 
+  // #3 — detect RSP reversal entries
+  const isRSPReversal = r.offer_type === 'RSP Update' && r.is_reversal === true
+
+  // #3 — execution date is the start date of reversal
+  const reversalExecutionDate = isRSPReversal
+    ? (ranges[0]?.from || '')
+    : null
+
+  const today = new Date().toISOString().split('T')[0]
+  const reversalIsUpcoming = reversalExecutionDate && reversalExecutionDate > today
+  const reversalIsDue = reversalExecutionDate && reversalExecutionDate <= today
+
   return (
-    <div className={`bg-white border rounded-xl transition-all ${expanded ? 'border-accent/40 shadow-sm' : 'border-border hover:shadow-sm'}`}>
+    <div className={`bg-white border rounded-xl transition-all ${
+      isRSPReversal
+        ? reversalIsUpcoming
+          ? 'border-purple-300 bg-purple-50/30 shadow-sm'
+          : 'border-orange-300 bg-orange-50/30 shadow-sm'
+        : expanded
+          ? 'border-accent/40 shadow-sm'
+          : 'border-border hover:shadow-sm'
+    }`}>
       <button className="w-full text-left px-5 py-3.5 flex items-center gap-3 flex-wrap sm:flex-nowrap" onClick={onToggle}>
         <span className="font-mono text-[11px] text-muted shrink-0 w-12">{r.promo_request_id || '—'}</span>
+
         <div className="flex-1 min-w-0">
-          <p className="font-display font-semibold text-sm text-ink truncate">{r.brand_names}</p>
+          <div className="flex items-center gap-1.5">
+            {/* #3 — RSP reversal badge */}
+            {isRSPReversal && (
+              <span className={`inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded-full border shrink-0 ${
+                reversalIsUpcoming
+                  ? 'bg-purple-100 text-purple-700 border-purple-300'
+                  : 'bg-orange-100 text-orange-700 border-orange-300'
+              }`}>
+                <RotateCcw size={8} />
+                RSP REVERSE
+              </span>
+            )}
+            <p className="font-display font-semibold text-sm text-ink truncate">{r.brand_names}</p>
+          </div>
           <p className="text-[11px] text-muted truncate">{r.category}</p>
         </div>
+
         <div className="hidden lg:block flex-1 min-w-0">
           <p className="text-xs font-body text-ink truncate">{r.promotion_name || r.promo_details}</p>
         </div>
-        <div className="hidden md:flex items-center gap-1 text-[11px] text-muted shrink-0 w-36">
-          {first.from ? `${fmtDate(first.from)} → ${fmtDate(first.till)}` : '—'}
-          {ranges.length > 1 && <span className="text-accent ml-1 font-mono">+{ranges.length - 1}</span>}
+
+        {/* #3 — highlight execution date for reversals */}
+        <div className="hidden md:flex items-center gap-1 text-[11px] shrink-0 w-44">
+          {isRSPReversal && reversalExecutionDate ? (
+            <div className="flex flex-col">
+              <span className={`font-mono font-bold text-xs ${reversalIsUpcoming ? 'text-purple-700' : 'text-orange-700'}`}>
+                Execute: {fmtDate(reversalExecutionDate)}
+              </span>
+              {reversalIsUpcoming && (
+                <span className="text-[10px] text-purple-500">Do not execute before this date</span>
+              )}
+              {reversalIsDue && (
+                <span className="text-[10px] text-orange-600 font-medium">⚠ Due for execution</span>
+              )}
+            </div>
+          ) : (
+            <span className="text-muted">
+              {first.from ? `${fmtDate(first.from)} → ${fmtDate(first.till)}` : '—'}
+              {ranges.length > 1 && <span className="text-accent ml-1 font-mono">+{ranges.length - 1}</span>}
+            </span>
+          )}
         </div>
+
         <div className="hidden lg:block text-[11px] text-muted shrink-0 w-24 truncate">{r.poc_name}</div>
         <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
           <StatusBadge status={r.status} />
@@ -196,6 +293,43 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
 
       {expanded && (
         <div className="px-5 pb-5 border-t border-border pt-4 space-y-5 fade-in">
+          {/* #3 — RSP reversal callout banner */}
+          {isRSPReversal && (
+            <div className={`rounded-lg px-4 py-3 border ${
+              reversalIsUpcoming
+                ? 'bg-purple-50 border-purple-300'
+                : 'bg-orange-50 border-orange-300'
+            }`}>
+              <div className="flex items-center gap-2 mb-1">
+                <RotateCcw size={14} className={reversalIsUpcoming ? 'text-purple-600' : 'text-orange-600'} />
+                <p className={`text-sm font-display font-bold ${reversalIsUpcoming ? 'text-purple-800' : 'text-orange-800'}`}>
+                  RSP Update Reversal
+                </p>
+              </div>
+              <p className={`text-xs font-body ${reversalIsUpcoming ? 'text-purple-700' : 'text-orange-700'}`}>
+                <span className="font-semibold">Execution date: </span>
+                <span className={`font-mono font-bold ${reversalIsUpcoming ? 'text-purple-800' : 'text-orange-800'}`}>
+                  {fmtDate(reversalExecutionDate)}
+                </span>
+              </p>
+              {reversalIsUpcoming && (
+                <p className="text-xs text-purple-600 mt-1 font-medium">
+                  ⚠ Do NOT execute this reversal before {fmtDate(reversalExecutionDate)}
+                </p>
+              )}
+              {reversalIsDue && (
+                <p className="text-xs text-orange-600 mt-1 font-medium">
+                  ✓ This reversal is due — proceed with execution
+                </p>
+              )}
+              {r.linked_promo_id && (
+                <p className="text-xs text-muted mt-1">
+                  Linked to original promo: <span className="font-mono font-bold">{r.linked_promo_id}</span>
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Detail grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {[
@@ -229,10 +363,14 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
           {/* Date ranges */}
           {ranges.length > 0 && (
             <div>
-              <p className="text-[10px] font-mono uppercase tracking-widest text-muted mb-2">Date Ranges</p>
+              <p className="text-[10px] font-mono uppercase tracking-widest text-muted mb-2">
+                {isRSPReversal ? 'Execution Date' : 'Date Ranges'}
+              </p>
               <div className="flex flex-wrap gap-2">
                 {ranges.map((dr, i) => (
-                  <div key={i} className="bg-paper border border-border rounded-lg px-3 py-2 text-xs font-body">
+                  <div key={i} className={`border rounded-lg px-3 py-2 text-xs font-body ${
+                    isRSPReversal ? 'bg-purple-50 border-purple-200' : 'bg-paper border-border'
+                  }`}>
                     <span className="font-medium">{fmtDate(dr.from)} → {fmtDate(dr.till)}</span>
                     {dr.stores?.length > 0 && <span className="text-muted ml-2">({dr.stores.join(', ')})</span>}
                   </div>
@@ -241,46 +379,42 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
             </div>
           )}
 
-          {/* Links */}
-          <div className="flex flex-wrap gap-4">
           {/* Links & Files */}
           <div className="flex flex-wrap gap-4">
-            {r.approval_email && (
-              <div>
-                <p className="text-[10px] font-mono uppercase tracking-widest text-muted mb-1.5">Brand Approval</p>
-                {r.approval_email.match(/\.(jpg|jpeg|png|webp)$/i) ? (
-                  <a href={r.approval_email} target="_blank" rel="noreferrer">
-                    <img src={r.approval_email} alt="Approval screenshot"
-                      className="max-h-48 rounded-lg border border-border object-contain hover:opacity-80 transition-opacity" />
-                  </a>
-                ) : (
-                  <ELink href={r.approval_email} label={r.approval_file_name || 'View Approval'} />
+            <div className="flex flex-wrap gap-4">
+              {r.approval_email && (
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-widest text-muted mb-1.5">Brand Approval</p>
+                  {r.approval_email.match(/\.(jpg|jpeg|png|webp)$/i) ? (
+                    <a href={r.approval_email} target="_blank" rel="noreferrer">
+                      <img src={r.approval_email} alt="Approval screenshot"
+                        className="max-h-48 rounded-lg border border-border object-contain hover:opacity-80 transition-opacity" />
+                    </a>
+                  ) : (
+                    <ELink href={r.approval_email} label={r.approval_file_name || 'View Approval'} />
+                  )}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-3">
+                {r.sku_file_link && <ELink href={r.sku_file_link} label="SKU File" />}
+                {r.sku_file_name && r.sku_file_data && (
+                  <button
+                    onClick={() => downloadCsvFromData(r.sku_file_name, r.sku_file_data)}
+                    className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
+                    <Download size={11} /> {r.sku_file_name}
+                  </button>
+                )}
+                {r.rsp_file_link && <ELink href={r.rsp_file_link} label="RSP File" />}
+                {r.rsp_file_name && r.rsp_file_data && (
+                  <button
+                    onClick={() => downloadCsvFromData(r.rsp_file_name, r.rsp_file_data)}
+                    className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
+                    <Download size={11} /> {r.rsp_file_name}
+                  </button>
                 )}
               </div>
-            )}
-
-            <div className="flex flex-wrap gap-3">
-              {/* SKU file — link or CSV download */}
-              {r.sku_file_link && <ELink href={r.sku_file_link} label="SKU File" />}
-              {r.sku_file_name && r.sku_file_data && (
-                <button
-                  onClick={() => downloadCsvFromData(r.sku_file_name, r.sku_file_data)}
-                  className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
-                  <Download size={11} /> {r.sku_file_name}
-                </button>
-              )}
-
-              {/* RSP file — link or CSV download */}
-              {r.rsp_file_link && <ELink href={r.rsp_file_link} label="RSP File" />}
-              {r.rsp_file_name && r.rsp_file_data && (
-                <button
-                  onClick={() => downloadCsvFromData(r.rsp_file_name, r.rsp_file_data)}
-                  className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
-                  <Download size={11} /> {r.rsp_file_name}
-                </button>
-              )}
             </div>
-          </div>
           </div>
 
           {r.remark && (
@@ -289,7 +423,6 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
             </div>
           )}
 
-          {/* Status update — admin only */}
           {isAdmin && (
             <StatusPanel row={r} onPatch={onPatch} updating={updating} allRows={allRows} />
           )}
@@ -347,11 +480,9 @@ function StatusPanel({ row: r, onPatch, updating, allRows }) {
     draft.shopify_discount_id !== (r.shopify_discount_id || '') ||
     draft.remark !== (r.remark || '')
 
-  // Find overlapping promos
   const myRanges = Array.isArray(r.date_ranges) ? r.date_ranges : []
   const overlapping = allRows.filter(other => {
     if (other.id === r.id) return false
-    // Only show overlaps for the same brand
     if (other.brand_names !== r.brand_names) return false
     const otherRanges = Array.isArray(other.date_ranges) ? other.date_ranges : []
     return myRanges.some(myR =>
@@ -397,7 +528,6 @@ function StatusPanel({ row: r, onPatch, updating, allRows }) {
     <div className="bg-paper rounded-lg p-4 border border-border space-y-4">
       <p className="text-[11px] font-mono uppercase tracking-widest text-muted">Update Status</p>
 
-      {/* Overlapping promos warning */}
       {overlapping.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
           <p className="text-xs font-display font-semibold text-warning mb-2">
@@ -422,7 +552,6 @@ function StatusPanel({ row: r, onPatch, updating, allRows }) {
         </div>
       )}
 
-      {/* Status dropdowns */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
           ['Status', 'status', STATUS_OPTIONS],
@@ -444,7 +573,6 @@ function StatusPanel({ row: r, onPatch, updating, allRows }) {
         ))}
       </div>
 
-      {/* Ginesys ID — required when status = Promo Created - System */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="text-[10px] font-mono uppercase text-muted mb-1 block">
@@ -461,8 +589,6 @@ function StatusPanel({ row: r, onPatch, updating, allRows }) {
           />
           {errors.ginesys && <p className="text-danger text-[10px] mt-1">{errors.ginesys}</p>}
         </div>
-
-        {/* Shopify ID — required when shopify status = Promo Created in Shopify */}
         <div>
           <label className="text-[10px] font-mono uppercase text-muted mb-1 block">
             Shopify Promo ID
@@ -480,7 +606,6 @@ function StatusPanel({ row: r, onPatch, updating, allRows }) {
         </div>
       </div>
 
-      {/* Comment box */}
       <div>
         <label className="text-[10px] font-mono uppercase text-muted mb-1 block">
           Comment / Remark
@@ -490,15 +615,13 @@ function StatusPanel({ row: r, onPatch, updating, allRows }) {
           className={`w-full bg-white border rounded-lg px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-accent/20 resize-none ${
             draft.remark !== (r.remark || '') ? 'border-accent' : 'border-border'
           }`}
-          rows={2}
-          maxLength={200}
+          rows={2} maxLength={200}
           placeholder="Add a comment or note…"
           value={draft.remark}
           onChange={e => setDraft(d => ({ ...d, remark: e.target.value }))}
         />
       </div>
 
-      {/* Timestamps */}
       <div className="flex gap-4 text-[10px] font-mono text-muted pt-1">
         {r.created_at && (
           <span>Requested: {new Date(r.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
@@ -508,13 +631,10 @@ function StatusPanel({ row: r, onPatch, updating, allRows }) {
         )}
       </div>
 
-      {/* Action buttons */}
       <div className="flex items-center gap-2 pt-1">
         {isDirty && (
           <>
-            <button
-              onClick={handleSave}
-              disabled={updating}
+            <button onClick={handleSave} disabled={updating}
               className="flex items-center gap-1.5 bg-accent text-white text-xs font-body px-3 py-1.5 rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors">
               {updating ? <Loader2 size={11} className="animate-spin" /> : null}
               {updating ? 'Saving…' : 'Save Changes'}
