@@ -85,7 +85,7 @@ export default function Analytics() {
       while (true) {
         const { data } = await supabase
           .from('historical_promos')
-          .select('brand_names,category,valid_from,valid_till,promotion_details,promotion_name')
+          .select('brand_names,category,valid_from,valid_till,promotion_details,promotion_name,status')
           .range(from, from + 999)
         if (!data || data.length === 0) break
         hist = [...hist, ...data]
@@ -94,7 +94,8 @@ export default function Analytics() {
       }
       const { data: cur } = await supabase
         .from('promo_requests')
-        .select('brand_names,category,date_ranges,promo_details,promotion_name')
+        .select('brand_names,category,date_ranges,promo_details,promotion_name,status')
+        .not('status', 'in', '("Rejected","Deactivated")')
         .limit(5000)
       // #2 — fetch top brands from Supabase
       const { data: tb } = await supabase
@@ -117,6 +118,7 @@ export default function Analytics() {
       till: r.valid_till,
       details: r.promotion_details || r.promotion_name || '',
       store: r.store || '',
+      status: r.status || '',
       source: 'historical',
     })),
     ...current.flatMap(r => {
@@ -128,10 +130,11 @@ export default function Analytics() {
         till: dr.till,
         details: r.promo_details || r.promotion_name || '',
         store: r.store || '',
+        status: r.status || '',
         source: 'current',
       }))
     }),
-  ].filter(r => r.brand && r.from && r.till)
+  ].filter(r => r.brand && r.from && r.till && !['Rejected','Deactivated'].includes(r.status))
 
   const STORES = ['All', 'VK, Delhi', 'BH, Hyderabad', 'Pune', 'Mumbai']
 
