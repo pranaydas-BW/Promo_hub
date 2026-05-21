@@ -171,7 +171,7 @@ export default function Analytics() {
   const uniqueCategories = [...new Set(allPromos.map(r => r.category).filter(Boolean))].sort()
 
   const weeklyTable = uniqueCategories.map(cat => {
-    const catPromos = allPromos.filter(r => r.category === cat)
+    const catPromos = filtered.filter(r => r.category === cat)
     const weeks = last8Weeks.map(w => ({
       week: w,
       count: catPromos.filter(p => isActiveInWeek(p, w)).length,
@@ -182,7 +182,7 @@ export default function Analytics() {
   // ── #1: Unique brands per week × Category ───────────────────────────────
   const uniqueBrandsPerWeek = last8Weeks.map(w => {
     const brands = new Set(
-      allPromos.filter(p => isActiveInWeek(p, w)).map(p => p.brand.trim().toLowerCase())
+      filtered.filter(p => isActiveInWeek(p, w)).map(p => p.brand.trim().toLowerCase())
     )
     return { week: w, count: brands.size }
   })
