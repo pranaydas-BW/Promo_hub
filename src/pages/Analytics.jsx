@@ -438,8 +438,9 @@ export default function Analytics() {
                   ))}
                 </div>
                 <button onClick={() => exportCSV(
-                  brandMonthTable.map(r => ({
+                  (topBrandsFilter ? brandMonthTable.filter(r => isTopBrand(r.brand)) : brandMonthTable).map(r => ({
                     brand: r.brand,
+                    store: r.store || '',
                     ...last6Months.reduce((acc2, m) => ({ ...acc2, [fmtMonth(m)]: (r.months[m] || []).join(' | ') }), {})
                   })),
                   'brand-monthly.csv'
@@ -504,7 +505,7 @@ export default function Analytics() {
                     {topBrandsFilter && <span className="ml-2 text-amber-600 font-medium">· Top Brands only</span>}
                   </p>
                 </div>
-                <button onClick={() => exportCSV(droppedBrands, 'critical-brands.csv')}
+                <button onClick={() => exportCSV(droppedBrands.map(b => ({ brand: b.brand, category: b.category, store: b.store || '', last_promo_ended: b.lastTill, last_offer: b.lastDetails })), 'critical-brands.csv')}
                   className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
                   <Download size={12} /> Export
                 </button>
@@ -620,7 +621,7 @@ export default function Analytics() {
                     {topBrandsFilter && <span className="ml-2 text-amber-600 font-medium">· Top Brands only</span>}
                   </p>
                 </div>
-                <button onClick={() => exportCSV(endingSoonList.map(r => ({...r, details: r.details.join(' | ')})), 'ending-soon.csv')}
+                <button onClick={() => exportCSV(endingSoonList.map(r => ({brand: r.brand, category: r.category, store: r.store || '', ends_on: r.till, details: r.details.join(' | ')})), 'ending-soon.csv')}
                   className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
                   <Download size={12} /> Export
                 </button>
