@@ -211,7 +211,7 @@ export default function Analytics() {
     const month = getMonthKey(r.from)
     if (!month) return
     const brand = r.brand.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
-    if (!brandMonthMap[brand]) brandMonthMap[brand] = {}
+    if (!brandMonthMap[brand]) brandMonthMap[brand] = { store: r.store || '' }
     if (!brandMonthMap[brand][month]) brandMonthMap[brand][month] = new Set()
     if (r.details) brandMonthMap[brand][month].add(r.details.trim())
   })
@@ -243,7 +243,7 @@ export default function Analytics() {
     .map(b => {
       const promos = filtered.filter(r => r.brand === b)
       const last = promos.sort((a, b) => new Date(b.till) - new Date(a.till))[0]
-      return { brand: b, category: last?.category || '', lastTill: last?.till || '', lastDetails: last?.details || '' }
+      return { brand: b, category: last?.category || '', store: last?.store || '', lastTill: last?.till || '', lastDetails: last?.details || '' }
     })
     .sort((a, b) => a.category.localeCompare(b.category))
 
@@ -452,6 +452,7 @@ export default function Analytics() {
                   <thead className="bg-paper border-b border-border">
                     <tr>
                       <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted sticky left-0 bg-paper">Brand</th>
+                      {storeFilter === 'All' && <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Store</th>}
                       {last6Months.map(m => (
                         <th key={m} className="px-3 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted whitespace-nowrap">{fmtMonth(m)}</th>
                       ))}
@@ -466,6 +467,7 @@ export default function Analytics() {
                             {row.brand}
                           </span>
                         </td>
+                        {storeFilter === 'All' && <td className="px-4 py-3 text-xs text-muted">{row.store || '—'}</td>}
                         {last6Months.map(m => (
                           <td key={m} className="px-3 py-3 text-xs text-muted max-w-[180px]">
                             {row.months[m] ? (
@@ -522,6 +524,7 @@ export default function Analytics() {
                       <tr>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Brand</th>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Category</th>
+                        {storeFilter === 'All' && <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Store</th>}
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Last Promo Ended</th>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Last Offer</th>
                       </tr>
@@ -536,6 +539,7 @@ export default function Analytics() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-muted">{b.category}</td>
+                          {storeFilter === 'All' && <td className="px-4 py-3 text-xs text-muted">{b.store || '—'}</td>}
                           <td className="px-4 py-3 font-mono text-xs text-danger">{fmtDate(b.lastTill)}</td>
                           <td className="px-4 py-3 text-xs text-muted max-w-[200px] truncate">{b.lastDetails || '—'}</td>
                         </tr>
@@ -632,6 +636,7 @@ export default function Analytics() {
                       <tr>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Brand</th>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Category</th>
+                        {storeFilter === 'All' && <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Store</th>}
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Ends On</th>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Offer Details</th>
                       </tr>
@@ -648,6 +653,7 @@ export default function Analytics() {
                               </span>
                             </td>
                             <td className="px-4 py-3 text-muted">{r.category}</td>
+                            {storeFilter === 'All' && <td className="px-4 py-3 text-xs text-muted">{r.store || '—'}</td>}
                             <td className="px-4 py-3">
                               <span className={`font-mono text-xs font-bold ${daysLeft <= 2 ? 'text-danger' : daysLeft <= 4 ? 'text-warning' : 'text-ink'}`}>
                                 {fmtDate(r.till)}
