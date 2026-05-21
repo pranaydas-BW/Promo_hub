@@ -136,7 +136,7 @@ export default function Analytics() {
     }),
   ].filter(r => r.brand && r.from && r.till && !['Rejected','Deactivated'].includes(r.status))
 
-  const STORES = ['All', 'VK, Delhi', 'BH, Hyderabad', 'Pune', 'Mumbai']
+  const STORES = ['All', 'VK, Delhi', 'BH, Hyderabad', 'Pune']
 
   const storeFiltered = storeFilter === 'All'
     ? allPromos
