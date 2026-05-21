@@ -363,6 +363,7 @@ export default function NewRequest() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState(null)
   const [pocError, setPocError] = useState('')
+  const [wantReversal, setWantReversal] = useState(false)
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -418,8 +419,8 @@ export default function NewRequest() {
 
     if (err) { setError(err.message); setLoading(false); return }
 
-    // #3 — If RSP Update and end date provided, automatically create a reversal entry
-    if (offerType === 'RSP Update' && validRanges.length > 0) {
+    // #3 — If RSP Update and user opted in, automatically create a reversal entry
+    if (offerType === 'RSP Update' && wantReversal && validRanges.length > 0) {
       const lastRange = validRanges[validRanges.length - 1]
       if (lastRange.till) {
         const reversalPayload = {
@@ -644,10 +645,11 @@ export default function NewRequest() {
                     <input type="date" className="input-field" required
                       value={range.from} onChange={e => setRange(i, 'from', e.target.value)} />
                   </Field>
-                  <Field label={isRSP && i === form.date_ranges.length - 1 ? 'Valid Till (Reversal Date)' : 'Valid Till'} required>
+                  <Field label={isRSP && i === form.date_ranges.length - 1 ? 'Valid Till (Reversal Date)' : 'Valid Till'} required={!isRSP || wantReversal}>
                     <input type="date"
-                      className={`input-field ${isRSP && i === form.date_ranges.length - 1 ? 'border-purple-300 focus:ring-purple-200' : ''}`}
-                      required
+                      className={`input-field ${isRSP && i === form.date_ranges.length - 1 && wantReversal ? 'border-purple-300 focus:ring-purple-200' : ''} ${isRSP && !wantReversal ? 'opacity-40 cursor-not-allowed bg-gray-50' : ''}`}
+                      required={!isRSP || wantReversal}
+                      disabled={isRSP && !wantReversal}
                       value={range.till}
                       onChange={e => setRange(i, 'till', e.target.value)} />
                   </Field>
