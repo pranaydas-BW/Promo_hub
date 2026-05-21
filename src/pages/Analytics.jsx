@@ -137,15 +137,19 @@ export default function Analytics() {
 
   const storeFiltered = storeFilter === 'All'
     ? allPromos
-    : allPromos.filter(r => !r.store || r.store.includes(storeFilter))
+    : allPromos.filter(r => r.store && r.store.includes(storeFilter))
 
-  const filtered = catFilter === 'All Categories'
+  const catFiltered = catFilter === 'All Categories'
     ? storeFiltered
     : storeFiltered.filter(r => r.category === catFilter)
 
   // #2 — helper: is this brand a top brand?
   const isTopBrand = (brand) =>
     topBrands.includes((brand || '').toLowerCase().trim())
+
+  const filtered = topBrandsFilter
+    ? catFiltered.filter(r => isTopBrand(r.brand))
+    : catFiltered
 
   // ── Table 1: Last 8 weeks × Category ─────────────────────────────────────
   const last8Weeks = getLastNWeeks(8)
@@ -172,13 +176,26 @@ export default function Analytics() {
     return { category: cat, weeks, total: weeks.reduce((a, w) => a + w.count, 0) }
   }).filter(r => r.total > 0).sort((a, b) => b.total - a.total)
 
-  // ── #1: Unique brands per week ────────────────────────────────────────────
+  // ── #1: Unique brands per week × Category ───────────────────────────────
   const uniqueBrandsPerWeek = last8Weeks.map(w => {
     const brands = new Set(
       allPromos.filter(p => isActiveInWeek(p, w)).map(p => p.brand.trim().toLowerCase())
     )
     return { week: w, count: brands.size }
   })
+
+  // Per category unique brands per week (uses filtered for cat/store filter)
+  const uniqueBrandsByCatWeek = uniqueCategories.map(cat => {
+    const catPromos = filtered.filter(r => r.category === cat)
+    const weeks = last8Weeks.map(w => {
+      const brands = new Set(
+        catPromos.filter(p => isActiveInWeek(p, w)).map(p => p.brand.trim().toLowerCase())
+      )
+      return { week: w, count: brands.size }
+    })
+    const total = weeks.reduce((a, w) => a + w.count, 0)
+    return { category: cat, weeks, total }
+  }).filter(r => r.total > 0).sort((a, b) => b.total - a.total)
 
   // ── Table 2: Brand × Month ────────────────────────────────────────────────
   const last6Months = []
@@ -328,8 +345,8 @@ Keep it concise and actionable. Use bullet points.`
     { id: 'ai', label: '✨ AI Insights' },
   ]
 
-  // #2 — show top brands toggle only on tabs that support it
-  const showTopBrandsToggle = tab === 'dropped' || tab === 'ending'
+  // #2 — show top brands toggle on all tabs
+  const showTopBrandsToggle = true
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 fade-in">
@@ -377,7 +394,7 @@ Keep it concise and actionable. Use bullet points.`
       {/* Tab switcher */}
       <div className="flex gap-1 bg-white border border-border rounded-xl p-1 w-fit mb-6 flex-wrap">
         {tabs.map(t => (
-          <button key={t.id} onClick={() => { setTab(t.id); setTopBrandsFilter(false) }}
+          <button key={t.id} onClick={() => setTab(t.id)}
             className={`px-4 py-2 rounded-lg text-sm font-body font-medium transition-colors whitespace-nowrap ${
               tab === t.id ? 'bg-ink text-white' : 'text-muted hover:text-ink'
             }`}>
@@ -443,34 +460,40 @@ Keep it concise and actionable. Use bullet points.`
                 </div>
               </div>
 
-              {/* #1 — Unique brands per week */}
+              {/* #1 — Unique brands per week × Category */}
               <div>
                 <h2 className="font-display font-bold text-xl text-ink mb-3">
-                  Unique Brands Active — Per Week
+                  Unique Brands Active Per Week — By Category
                 </h2>
                 <div className="overflow-x-auto rounded-xl border border-border bg-white">
                   <table className="min-w-full text-sm font-body">
                     <thead className="bg-paper border-b border-border">
                       <tr>
-                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted sticky left-0 bg-paper">Metric</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted sticky left-0 bg-paper">Category</th>
                         {last8Weeks.map(w => (
                           <th key={w} className="px-3 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted whitespace-nowrap">{w}</th>
                         ))}
+                        <th className="px-3 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted">Total</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr className="hover:bg-paper/40">
-                        <td className="px-4 py-3 font-medium text-ink sticky left-0 bg-white">Unique Brands</td>
-                        {uniqueBrandsPerWeek.map(({ week, count }) => (
-                          <td key={week} className="px-3 py-3 text-center">
-                            <span className={`inline-block min-w-[28px] rounded px-1.5 py-0.5 text-xs font-mono font-bold ${
-                              count >= 30 ? 'bg-emerald-100 text-emerald-700' :
-                              count >= 15 ? 'bg-blue-100 text-blue-700' :
-                              count > 0 ? 'bg-gray-100 text-gray-600' : ''
-                            }`}>{count > 0 ? count : <span className="text-border">—</span>}</span>
-                          </td>
-                        ))}
-                      </tr>
+                      {uniqueBrandsByCatWeek.map(row => (
+                        <tr key={row.category} className="border-b border-border last:border-0 hover:bg-paper/40">
+                          <td className="px-4 py-3 font-medium text-ink sticky left-0 bg-white">{row.category}</td>
+                          {row.weeks.map(w => (
+                            <td key={w.week} className="px-3 py-3 text-center">
+                              {w.count > 0 ? (
+                                <span className={`inline-block min-w-[24px] rounded px-1.5 py-0.5 text-xs font-mono font-bold ${
+                                  w.count >= 15 ? 'bg-emerald-100 text-emerald-700' :
+                                  w.count >= 8 ? 'bg-blue-100 text-blue-700' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>{w.count}</span>
+                              ) : <span className="text-border">—</span>}
+                            </td>
+                          ))}
+                          <td className="px-3 py-3 text-center font-mono font-bold text-ink">{row.total}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>

@@ -216,6 +216,8 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
 
   // #3 — detect RSP reversal entries
   const isRSPReversal = r.offer_type === 'RSP Update' && r.is_reversal === true
+  // #4 — detect closure entries
+  const isClosure = r.offer_type === 'Promo Closure'
 
   // #3 — execution date is the start date of reversal
   const reversalExecutionDate = isRSPReversal
@@ -228,13 +230,15 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
 
   return (
     <div className={`bg-white border rounded-xl transition-all ${
-      isRSPReversal
-        ? reversalIsUpcoming
-          ? 'border-purple-300 bg-purple-50/30 shadow-sm'
-          : 'border-orange-300 bg-orange-50/30 shadow-sm'
-        : expanded
-          ? 'border-accent/40 shadow-sm'
-          : 'border-border hover:shadow-sm'
+      isClosure
+        ? 'border-red-300 bg-red-50/30 shadow-sm'
+        : isRSPReversal
+          ? reversalIsUpcoming
+            ? 'border-purple-300 bg-purple-50/30 shadow-sm'
+            : 'border-orange-300 bg-orange-50/30 shadow-sm'
+          : expanded
+            ? 'border-accent/40 shadow-sm'
+            : 'border-border hover:shadow-sm'
     }`}>
       <button className="w-full text-left px-5 py-3.5 flex items-center gap-3 flex-wrap sm:flex-nowrap" onClick={onToggle}>
         <span className="font-mono text-[11px] text-muted shrink-0 w-12">{r.promo_request_id || '—'}</span>
@@ -250,6 +254,12 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
               }`}>
                 <RotateCcw size={8} />
                 RSP REVERSE
+              </span>
+            )}
+            {/* #4 — Closure badge */}
+            {isClosure && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded-full border shrink-0 bg-red-100 text-red-700 border-red-300">
+                🔴 CLOSURE
               </span>
             )}
             <p className="font-display font-semibold text-sm text-ink truncate">{r.brand_names}</p>

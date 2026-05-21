@@ -48,6 +48,9 @@ const BLANK_FORM = {
   sku_file_data: '',
   rsp_file_name: '',
   rsp_file_data: '',
+  reversal_rsp_file_name: '',
+  reversal_rsp_file_data: '',
+  reversal_rsp_file_link: '',
   remark: '',
   status: 'Pending',
   current_status: 'Not Live',
@@ -436,9 +439,9 @@ export default function NewRequest() {
           funded_by: form.funded_by,
           // Reversal execution date = end date of original promo
           date_ranges: [{ from: lastRange.till, till: lastRange.till }],
-          rsp_file_link: form.rsp_file_link || '',
-          rsp_file_name: form.rsp_file_name || '',
-          rsp_file_data: form.rsp_file_data || '',
+          rsp_file_link: form.reversal_rsp_file_link || form.rsp_file_link || '',
+          rsp_file_name: form.reversal_rsp_file_name || form.rsp_file_name || '',
+          rsp_file_data: form.reversal_rsp_file_data || form.rsp_file_data || '',
           approval_email: form.approval_email || '',
           approval_file_name: form.approval_file_name || '',
           remark: `Auto-created reversal for ${inserted?.promo_request_id || 'RSP update'}. Do not execute before ${lastRange.till}.`,
@@ -461,7 +464,7 @@ export default function NewRequest() {
         <CheckCircle className="text-success" size={32} />
       </div>
       <h2 className="font-display text-2xl font-bold text-ink mb-2">Request Submitted!</h2>
-      {offerType === 'RSP Update' && (
+      {offerType === 'RSP Update' && wantReversal && (
         <p className="text-muted font-body text-sm mb-1">A reversal entry has been automatically created on the Promo Board.</p>
       )}
       <p className="text-muted font-body text-sm">Taking you back to the board…</p>
@@ -541,7 +544,7 @@ export default function NewRequest() {
           {/* #3 — RSP reversal notice */}
           {isRSP && (
             <p className="text-xs font-body text-purple-600 mt-0.5">
-              ℹ A reversal entry will be auto-created on the board based on the end date you enter.
+              ℹ You'll be asked if you want to reverse this RSP update after its end date.
             </p>
           )}
         </div>
@@ -625,8 +628,34 @@ export default function NewRequest() {
         <Section title="Date Ranges">
           <p className="text-xs text-muted -mt-2">Add multiple rows if the promo runs in separate periods.</p>
           {isRSP && (
-            <div className="bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 text-xs text-purple-700">
-              <strong>RSP Update note:</strong> The end date ("Valid Till") of your last date range will be used as the RSP reversal execution date. A pending reversal entry will appear on the board.
+            <div className="bg-purple-50 border border-purple-200 rounded-lg px-4 py-3 space-y-3">
+              <p className="text-xs font-display font-semibold text-purple-800">RSP Reversal</p>
+              <p className="text-xs text-purple-700">Do you want to reverse the RSP update after the end date?</p>
+              <div className="flex gap-3">
+                {['Yes', 'No'].map(opt => (
+                  <label key={opt} className={`flex items-center gap-2 border-2 rounded-lg px-4 py-2 cursor-pointer transition-all text-sm font-body font-medium ${
+                    (opt === 'Yes' ? wantReversal : !wantReversal)
+                      ? 'border-purple-500 bg-purple-100 text-purple-800'
+                      : 'border-border bg-white text-muted hover:border-ink/40'
+                  }`}>
+                    <input type="radio" name="want_reversal" className="hidden"
+                      checked={opt === 'Yes' ? wantReversal : !wantReversal}
+                      onChange={() => {
+                        setWantReversal(opt === 'Yes')
+                        // Clear till dates if reversal turned off
+                        if (opt === 'No') {
+                          setForm(f => ({ ...f, date_ranges: f.date_ranges.map(r => ({ ...r, till: '' })) }))
+                        }
+                      }} />
+                    {opt}
+                  </label>
+                ))}
+              </div>
+              {wantReversal && (
+                <p className="text-[11px] text-purple-600">
+                  ↩ Enter the end date below — a reversal entry will be auto-created on the board for that date.
+                </p>
+              )}
             </div>
           )}
           <div className="space-y-3">
@@ -647,14 +676,18 @@ export default function NewRequest() {
                   </Field>
                   <Field label={isRSP && i === form.date_ranges.length - 1 ? 'Valid Till (Reversal Date)' : 'Valid Till'} required={!isRSP || wantReversal}>
                     <input type="date"
-                      className={`input-field ${isRSP && i === form.date_ranges.length - 1 && wantReversal ? 'border-purple-300 focus:ring-purple-200' : ''} ${isRSP && !wantReversal ? 'opacity-40 cursor-not-allowed bg-gray-50' : ''}`}
+                      className={`input-field ${
+                        isRSP && i === form.date_ranges.length - 1 && wantReversal
+                          ? 'border-purple-300 focus:ring-purple-200'
+                          : ''
+                      } ${isRSP && !wantReversal ? 'opacity-40 cursor-not-allowed bg-gray-50' : ''}`}
                       required={!isRSP || wantReversal}
                       disabled={isRSP && !wantReversal}
                       value={range.till}
                       onChange={e => setRange(i, 'till', e.target.value)} />
                   </Field>
                 </div>
-                {isRSP && i === form.date_ranges.length - 1 && range.till && (
+                {isRSP && wantReversal && i === form.date_ranges.length - 1 && range.till && (
                   <p className="text-[11px] text-purple-600 mt-1.5">
                     ↩ RSP reversal will be auto-scheduled for: <strong>{range.till}</strong>
                   </p>
@@ -754,6 +787,23 @@ export default function NewRequest() {
                   set('rsp_file_link', url || '')
                 }}
                 onClear={() => { set('rsp_file_name', ''); set('rsp_file_data', '') }}
+              />
+            </div>
+          )}
+
+          {isRSP && wantReversal && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 space-y-3">
+              <p className="text-xs font-display font-semibold text-purple-800">Reversal SKU File</p>
+              <p className="text-[11px] text-purple-700">Upload the RSP file to be used when reversing the update on the end date. Usually the original RSP values before this update.</p>
+              <CsvUploadField
+                offerType="RSP Update"
+                value={form.reversal_rsp_file_name}
+                onParsed={(fileName, rows, url) => {
+                  set('reversal_rsp_file_name', fileName)
+                  set('reversal_rsp_file_data', JSON.stringify(rows))
+                  set('reversal_rsp_file_link', url || '')
+                }}
+                onClear={() => { set('reversal_rsp_file_name', ''); set('reversal_rsp_file_data', '') }}
               />
             </div>
           )}
