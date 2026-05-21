@@ -214,6 +214,12 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
   const ranges = Array.isArray(r.date_ranges) ? r.date_ranges : []
   const first = ranges[0] || {}
 
+  // #5 — Auto-compute Expired: if status is a "created" state and all date ranges are past
+  const today = new Date().toISOString().split('T')[0]
+  const isCreatedStatus = ['Promo Created - System', 'Selling Price Updated'].includes(r.status)
+  const allExpired = ranges.length > 0 && ranges.every(dr => dr.till && dr.till < today)
+  const effectiveCurrentStatus = isCreatedStatus && allExpired ? 'Expired' : r.current_status
+
   // #3 — detect RSP reversal entries
   const isRSPReversal = r.offer_type === 'RSP Update' && r.is_reversal === true
   // #4 — detect closure entries
@@ -296,7 +302,7 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
         <div className="hidden lg:block text-[11px] text-muted shrink-0 w-24 truncate">{r.poc_name}</div>
         <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
           <StatusBadge status={r.status} />
-          <CurrentStatusDot status={r.current_status} />
+          <CurrentStatusDot status={effectiveCurrentStatus} />
         </div>
         <ChevronDown size={13} className={`text-muted shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
@@ -348,12 +354,14 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
               ['Shopify Discount ID', r.shopify_discount_id],
               ['Promotion Name', r.promotion_name],
               ['Type of Offer', r.offer_type],
+              ['Live Status', effectiveCurrentStatus],
               ['Funded By', r.funded_by],
               ['Assortment Type', r.assortment_type],
               ['Offline / Online', r.offline_online],
               ['Store', r.store],
               ['Broadway Discount %', r.broadway_discount_pct || r.broadway_discount_both],
               ['Brand Discount %', r.brand_discount_pct || r.brand_discount_both],
+              ['Discount On', r.discount_on],
               ['POC', r.poc_name],
             ].filter(([, v]) => v).map(([l, v]) => (
               <div key={l}>

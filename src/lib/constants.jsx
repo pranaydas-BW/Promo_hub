@@ -31,14 +31,19 @@ export const STATUS_OPTIONS = [
   'Rejected',
 ]
 
-export const CURRENT_STATUS_OPTIONS = ['Not Live', 'Active']
+// #5 — Added 'Expired' to current status options
+export const CURRENT_STATUS_OPTIONS = ['Not Live', 'Active', 'Expired']
 
+// #4 — Added Rejected, Only offline promo, Item not live
 export const SHOPIFY_STATUS_OPTIONS = [
   'Promo Created in Shopify',
   'RSP Updated in Shopify',
   'Brand Not Live',
   'Expired',
   'Promo Deactivated',
+  'Rejected',
+  'Only offline promo',
+  'Item not live',
 ]
 
 // ─── Status colour maps ───────────────────────────────────────────────────────
@@ -52,9 +57,11 @@ export const STATUS_STYLES = {
   'Rejected':                   'bg-red-50 text-red-700 border-red-200',
 }
 
+// #5 — Added Expired style
 export const CURRENT_STATUS_STYLES = {
   'Active':   'bg-emerald-50 text-emerald-700 border-emerald-200',
   'Not Live': 'bg-gray-100 text-gray-500 border-gray-200',
+  'Expired':  'bg-red-50 text-red-500 border-red-200',
 }
 
 // ─── Reusable badge components ────────────────────────────────────────────────
@@ -70,9 +77,13 @@ export function StatusBadge({ status }) {
 
 export function CurrentStatusDot({ status }) {
   const s = CURRENT_STATUS_STYLES[status] || CURRENT_STATUS_STYLES['Not Live']
+  const dotColor =
+    status === 'Active' ? 'bg-emerald-500' :
+    status === 'Expired' ? 'bg-red-400' :
+    'bg-gray-400'
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-mono border ${s}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${status === 'Active' ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+      <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
       {status || 'Not Live'}
     </span>
   )

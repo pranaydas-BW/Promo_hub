@@ -408,6 +408,9 @@ export default function NewRequest() {
     if (!form.approval_email) {
       setError('Please upload the brand approval screenshot.'); setLoading(false); return
     }
+    if (isPromo && form.assortment_type === 'Selected SKUs' && !form.sku_file_name) {
+      setError('Please upload the SKU file — required for Selected SKUs.'); setLoading(false); return
+    }
 
     const payload = {
       ...form,
@@ -724,7 +727,7 @@ export default function NewRequest() {
           <Field label="Assortment Type" required>
             <select className="input-field" required value={form.assortment_type} onChange={e => set('assortment_type', e.target.value)}>
               <option value="">Select…</option>
-              {ASSORTMENT_TYPES.filter(a => a !== 'All SKUs').map(a => <option key={a}>{a}</option>)}
+              {ASSORTMENT_TYPES.map(a => <option key={a}>{a}</option>)}
             </select>
           </Field>
 
@@ -745,9 +748,13 @@ export default function NewRequest() {
             </div>
           </Field>}
 
-          {isPromo && (
+          {/* #1/#2 — SKU file: hidden for All SKUs, mandatory for Selected SKUs */}
+          {isPromo && form.assortment_type === 'Selected SKUs' && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-              <p className="text-xs font-display font-semibold text-info">Upload SKU file</p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-display font-semibold text-info">Upload SKU file <span className="text-accent ml-1">*</span></p>
+                <span className="text-[10px] font-mono text-info bg-blue-100 px-2 py-0.5 rounded-full">Required for Selected SKUs</span>
+              </div>
               <CsvUploadField
                 offerType={offerType}
                 value={form.sku_file_name}
@@ -758,6 +765,11 @@ export default function NewRequest() {
                 }}
                 onClear={() => { set('sku_file_name', ''); set('sku_file_data', '') }}
               />
+            </div>
+          )}
+          {isPromo && form.assortment_type === 'All SKUs - Flat on All' && (
+            <div className="bg-gray-50 border border-border rounded-lg px-4 py-3">
+              <p className="text-xs text-muted font-body">ℹ No SKU file needed for <span className="font-semibold">All SKUs - Flat on All</span> — applies to entire assortment.</p>
             </div>
           )}
         </Section>
