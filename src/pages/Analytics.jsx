@@ -85,7 +85,7 @@ export default function Analytics() {
       while (true) {
         const { data } = await supabase
           .from('historical_promos')
-          .select('brand_names,category,valid_from,valid_till,promotion_details,promotion_name,status')
+          .select('brand_names,category,valid_from,valid_till,promotion_details,promotion_name,status,store')
           .range(from, from + 999)
         if (!data || data.length === 0) break
         hist = [...hist, ...data]
