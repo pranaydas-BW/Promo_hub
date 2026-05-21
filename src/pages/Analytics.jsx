@@ -440,6 +440,7 @@ export default function Analytics() {
                 <button onClick={() => exportCSV(
                   (topBrandsFilter ? brandMonthTable.filter(r => isTopBrand(r.brand)) : brandMonthTable).map(r => ({
                     brand: r.brand,
+                    is_top_brand: isTopBrand(r.brand) ? 'Yes' : 'No',
                     store: r.store || '',
                     ...last6Months.reduce((acc2, m) => ({ ...acc2, [fmtMonth(m)]: (r.months[m] || []).join(' | ') }), {})
                   })),
@@ -505,7 +506,7 @@ export default function Analytics() {
                     {topBrandsFilter && <span className="ml-2 text-amber-600 font-medium">· Top Brands only</span>}
                   </p>
                 </div>
-                <button onClick={() => exportCSV(droppedBrands.map(b => ({ brand: b.brand, category: b.category, store: b.store || '', last_promo_ended: b.lastTill, last_offer: b.lastDetails })), 'critical-brands.csv')}
+                <button onClick={() => exportCSV(droppedBrands.map(b => ({ brand: b.brand, is_top_brand: isTopBrand(b.brand) ? 'Yes' : 'No', category: b.category, store: b.store || '', last_promo_ended: b.lastTill, last_offer: b.lastDetails })), 'critical-brands.csv')}
                   className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
                   <Download size={12} /> Export
                 </button>
@@ -567,7 +568,7 @@ export default function Analytics() {
                     onChange={e => setSelectedDay(e.target.value)}
                   />
                   <span className="text-sm text-muted font-body">{dayPromosList.length} promos live</span>
-                  <button onClick={() => exportCSV(dayPromosList.map(r => ({...r, offers: r.offers.join(' | ')})), `live-promos-${selectedDay}.csv`)}
+                  <button onClick={() => exportCSV(dayPromosList.map(r => ({ brand: r.brand, is_top_brand: isTopBrand(r.brand) ? 'Yes' : 'No', category: r.category, store: r.store || '', offers: r.offers.join(' | ') })), `live-promos-${selectedDay}.csv`)}
                     className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
                     <Download size={12} /> Export
                   </button>
@@ -621,7 +622,7 @@ export default function Analytics() {
                     {topBrandsFilter && <span className="ml-2 text-amber-600 font-medium">· Top Brands only</span>}
                   </p>
                 </div>
-                <button onClick={() => exportCSV(endingSoonList.map(r => ({brand: r.brand, category: r.category, store: r.store || '', ends_on: r.till, details: r.details.join(' | ')})), 'ending-soon.csv')}
+                <button onClick={() => exportCSV(endingSoonList.map(r => ({ brand: r.brand, is_top_brand: isTopBrand(r.brand) ? 'Yes' : 'No', category: r.category, store: r.store || '', ends_on: fmtDate(r.till), details: r.details.join(' | ') })), 'ending-soon.csv')}
                   className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
                   <Download size={12} /> Export
                 </button>
