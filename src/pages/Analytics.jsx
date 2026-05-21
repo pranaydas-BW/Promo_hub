@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { exportCSV, todayISO, fmtDate } from '../lib/constants.jsx'
-import { Download, Loader2, TrendingUp, AlertTriangle, Sparkles, Star } from 'lucide-react'
+import { Download, Loader2, TrendingUp, AlertTriangle, Star } from 'lucide-react'
 
 const CATEGORIES = [
   'All Categories',
@@ -71,8 +71,6 @@ export default function Analytics() {
   const [monthFilter, setMonthFilter] = useState(6)
   const [storeFilter, setStoreFilter] = useState('All')
   const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split('T')[0])
-  const [aiInsight, setAiInsight] = useState('')
-  const [aiLoading, setAiLoading] = useState(false)
   // #2 — top brands list from Supabase
   const [topBrands, setTopBrands] = useState([])
   const [topBrandsFilter, setTopBrandsFilter] = useState(false)
@@ -299,45 +297,6 @@ export default function Analytics() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 50)
 
-  // ── AI Insights ───────────────────────────────────────────────────────────
-  const getAIInsights = async () => {
-    setAiLoading(true)
-    setAiInsight('')
-    const summary = {
-      totalPromos: allPromos.length,
-      droppedBrands: droppedBrandsAll.slice(0, 10).map(b => `${b.brand} (${b.category}, last: ${fmtDate(b.lastTill)})`),
-      topBrands: leaderboard.slice(0, 10).map(b => `${b.brand}: ${b.count} promos`),
-      categoryTotals: weeklyTable.map(r => `${r.category}: ${r.total} active weeks`),
-    }
-    const prompt = `You are a retail promotions analyst for Broadway, a multi-brand retail store in India.
-
-Here is the promo data summary:
-- Total promos analyzed: ${summary.totalPromos}
-- Top brands by promo volume: ${summary.topBrands.join(', ')}
-- Brands that were active last month but have NO promo this month (critical - need follow up): ${summary.droppedBrands.join(', ')}
-- Category activity (total active promo-weeks in last 8 weeks): ${summary.categoryTotals.join(', ')}
-
-Please provide:
-1. 3 key insights about promo activity patterns
-2. Top 5 brands to prioritize for new promos (based on gap since last promo or high historical volume)
-3. Any category that seems underserved or overserved
-4. One actionable recommendation
-
-Keep it concise and actionable. Use bullet points.`
-
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    })
-    const data = await res.json()
-    setAiInsight(data.content?.[0]?.text || 'Could not generate insights.')
-    setAiLoading(false)
-  }
 
   const tabs = [
     { id: 'weekly', label: 'Weekly Activity' },
@@ -345,7 +304,6 @@ Keep it concise and actionable. Use bullet points.`
     { id: 'dropped', label: 'Critical Brands' },
     { id: 'dayview', label: '📅 Day View' },
     { id: 'ending', label: '⏰ Ending Soon' },
-    { id: 'ai', label: '✨ AI Insights' },
   ]
 
   // #2 — show top brands toggle on all tabs
@@ -415,54 +373,6 @@ Keep it concise and actionable. Use bullet points.`
           {/* Table 1: Weekly Activity */}
           {tab === 'weekly' && (
             <div className="space-y-6">
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="font-display font-bold text-xl text-ink">
-                    Category Activity — Last 8 Weeks
-                  </h2>
-                  <button onClick={() => exportCSV(
-                    weeklyTable.map(r => ({ category: r.category, ...r.weeks.reduce((a,w) => ({...a,[w.week]:w.count}),{}), total: r.total })),
-                    'weekly-activity.csv'
-                  )} className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
-                    <Download size={12} /> Export
-                  </button>
-                </div>
-                <div className="overflow-x-auto rounded-xl border border-border bg-white">
-                  <table className="min-w-full text-sm font-body">
-                    <thead className="bg-paper border-b border-border">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted sticky left-0 bg-paper">Category</th>
-                        {last8Weeks.map(w => (
-                          <th key={w} className="px-3 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted whitespace-nowrap">{w}</th>
-                        ))}
-                        <th className="px-3 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {weeklyTable.map(row => (
-                        <tr key={row.category} className="border-b border-border last:border-0 hover:bg-paper/40">
-                          <td className="px-4 py-3 font-medium text-ink sticky left-0 bg-white">{row.category}</td>
-                          {row.weeks.map(w => (
-                            <td key={w.week} className="px-3 py-3 text-center">
-                              {w.count > 0 ? (
-                                <span className={`inline-block min-w-[24px] rounded px-1.5 py-0.5 text-xs font-mono font-bold ${
-                                  w.count >= 10 ? 'bg-emerald-100 text-emerald-700' :
-                                  w.count >= 5 ? 'bg-blue-100 text-blue-700' :
-                                  'bg-gray-100 text-gray-600'
-                                }`}>{w.count}</span>
-                              ) : (
-                                <span className="text-border">—</span>
-                              )}
-                            </td>
-                          ))}
-                          <td className="px-3 py-3 text-center font-mono font-bold text-ink">{row.total}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
               {/* #1 — Unique brands per week × Category */}
               <div>
                 <h2 className="font-display font-bold text-xl text-ink mb-3">
@@ -759,45 +669,6 @@ Keep it concise and actionable. Use bullet points.`
             </div>
           )}
 
-          {/* AI Insights */}
-          {tab === 'ai' && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-display font-bold text-xl text-ink flex items-center gap-2">
-                  <Sparkles size={20} className="text-accent" />
-                  AI Insights
-                </h2>
-                <button onClick={getAIInsights} disabled={aiLoading}
-                  className="flex items-center gap-1.5 bg-accent text-white text-sm font-body px-4 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors">
-                  {aiLoading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                  {aiLoading ? 'Analyzing…' : 'Generate Insights'}
-                </button>
-              </div>
-              {!aiInsight && !aiLoading && (
-                <div className="bg-white border border-border rounded-xl py-16 text-center">
-                  <Sparkles size={28} className="mx-auto mb-3 text-accent opacity-50" />
-                  <p className="font-body text-muted text-sm">Click "Generate Insights" to get AI-powered analysis of your promo data.</p>
-                  <p className="font-body text-muted text-xs mt-1">Analyzes {allPromos.length.toLocaleString()} promos across all brands and categories.</p>
-                </div>
-              )}
-              {aiLoading && (
-                <div className="bg-white border border-border rounded-xl py-16 text-center">
-                  <Loader2 size={28} className="mx-auto mb-3 text-accent animate-spin" />
-                  <p className="font-body text-muted text-sm">Analyzing your promo data…</p>
-                </div>
-              )}
-              {aiInsight && !aiLoading && (
-                <div className="bg-white border border-border rounded-xl p-6">
-                  <div className="prose prose-sm max-w-none font-body text-ink whitespace-pre-wrap leading-relaxed">
-                    {aiInsight}
-                  </div>
-                  <p className="text-[11px] text-muted mt-4 pt-3 border-t border-border">
-                    Based on {allPromos.length.toLocaleString()} promos · Generated {new Date().toLocaleString('en-IN')}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
         </>
       )}
     </div>
