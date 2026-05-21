@@ -261,7 +261,7 @@ export default function Analytics() {
   filtered.forEach(r => {
     if (!r.till || r.till < today || r.till > in7DaysStr) return
     const key = r.brand + '|' + r.till
-    if (!endingSoonMapAll[key]) endingSoonMapAll[key] = { brand: r.brand, category: r.category, till: r.till, details: [] }
+    if (!endingSoonMapAll[key]) endingSoonMapAll[key] = { brand: r.brand, category: r.category, store: r.store || '', till: r.till, details: [] }
     if (r.details && !endingSoonMapAll[key].details.includes(r.details.trim()))
       endingSoonMapAll[key].details.push(r.details.trim())
   })
