@@ -215,9 +215,9 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
   const first = ranges[0] || {}
 
   // #5 — Auto-compute Expired: if status is a "created" state and all date ranges are past
-  const today = new Date().toISOString().split('T')[0]
+  const todayStr = new Date().toISOString().split('T')[0]
   const isCreatedStatus = ['Promo Created - System', 'Selling Price Updated'].includes(r.status)
-  const allExpired = ranges.length > 0 && ranges.every(dr => dr.till && dr.till < today)
+  const allExpired = ranges.length > 0 && ranges.every(dr => dr.till && dr.till < todayStr)
   const effectiveCurrentStatus = isCreatedStatus && allExpired ? 'Expired' : r.current_status
 
   // #3 — detect RSP reversal entries
