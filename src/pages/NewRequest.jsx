@@ -411,6 +411,12 @@ export default function NewRequest() {
     if (isPromo && form.assortment_type === 'Selected SKUs' && !form.sku_file_name) {
       setError('Please upload the SKU file — required for Selected SKUs.'); setLoading(false); return
     }
+    if (isRSP && !form.rsp_file_name) {
+      setError('Please upload the RSP file — required for RSP Update.'); setLoading(false); return
+    }
+    if (isRSP && wantReversal && !form.reversal_rsp_file_name) {
+      setError('Please upload the Reversal RSP file — required when reversal is selected.'); setLoading(false); return
+    }
 
     const payload = {
       ...form,
