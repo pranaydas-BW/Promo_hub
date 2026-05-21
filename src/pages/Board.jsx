@@ -361,7 +361,7 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
               ['Store', r.store],
               ['Broadway Discount %', r.broadway_discount_pct || r.broadway_discount_both],
               ['Brand Discount %', r.brand_discount_pct || r.brand_discount_both],
-              ['Discount On', r.discount_on],
+              ['Discount On', r.discount_on || (r.offer_type === 'Promotion' ? 'Not set' : null)],
               ['POC', r.poc_name],
             ].filter(([, v]) => v).map(([l, v]) => (
               <div key={l}>
@@ -375,6 +375,20 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
             <div>
               <p className="text-[10px] font-mono uppercase tracking-widest text-muted mb-0.5">Promotion Details</p>
               <p className="text-sm font-body text-ink whitespace-pre-wrap">{r.promo_details}</p>
+            </div>
+          )}
+
+          {/* Discount On — prominent for Promotions */}
+          {r.offer_type === 'Promotion' && (
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] font-mono uppercase tracking-widest text-muted">Discount On</p>
+              {r.discount_on ? (
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                  {r.discount_on}
+                </span>
+              ) : (
+                <span className="text-xs text-muted italic">Not set</span>
+              )}
             </div>
           )}
 
@@ -415,16 +429,27 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
               )}
 
               <div className="flex flex-wrap gap-3">
-                {r.sku_file_link && <ELink href={r.sku_file_link} label="SKU File" />}
-                {r.sku_file_name && r.sku_file_data && (
+                {/* SKU file — only for Promotions */}
+                {!isRSPReversal && r.offer_type !== 'RSP Update' && r.sku_file_link && <ELink href={r.sku_file_link} label="SKU File" />}
+                {!isRSPReversal && r.offer_type !== 'RSP Update' && r.sku_file_name && r.sku_file_data && (
                   <button
                     onClick={() => downloadCsvFromData(r.sku_file_name, r.sku_file_data)}
                     className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
                     <Download size={11} /> {r.sku_file_name}
                   </button>
                 )}
-                {r.rsp_file_link && <ELink href={r.rsp_file_link} label="RSP File" />}
-                {r.rsp_file_name && r.rsp_file_data && (
+                {/* RSP file — only for RSP Updates (not reversals) */}
+                {r.offer_type === 'RSP Update' && !isRSPReversal && r.rsp_file_link && <ELink href={r.rsp_file_link} label="RSP File" />}
+                {r.offer_type === 'RSP Update' && !isRSPReversal && r.rsp_file_name && r.rsp_file_data && (
+                  <button
+                    onClick={() => downloadCsvFromData(r.rsp_file_name, r.rsp_file_data)}
+                    className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
+                    <Download size={11} /> {r.rsp_file_name}
+                  </button>
+                )}
+                {/* Reversal file — only for RSP Reversals */}
+                {isRSPReversal && r.rsp_file_link && <ELink href={r.rsp_file_link} label="Reversal RSP File" />}
+                {isRSPReversal && r.rsp_file_name && r.rsp_file_data && (
                   <button
                     onClick={() => downloadCsvFromData(r.rsp_file_name, r.rsp_file_data)}
                     className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
