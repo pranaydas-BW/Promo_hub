@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Tag, LayoutDashboard, PlusCircle, BarChart2, CalendarClock, ShieldCheck, LogOut, BookMarked } from 'lucide-react'
+import { Tag, LayoutDashboard, PlusCircle, BarChart2, CalendarClock, ShieldCheck, LogOut, BookMarked, Store } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 
 const links = [
