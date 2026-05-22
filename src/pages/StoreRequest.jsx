@@ -34,8 +34,21 @@ export default function StoreRequest() {
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState(null)
+  const [activeTab, setActiveTab] = useState('request')
+  const [pastRequests, setPastRequests] = useState([])
+  const [pastLoading, setPastLoading] = useState(true)
+  const [searchCat, setSearchCat] = useState('')
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const loadPastRequests = async () => {
+    setPastLoading(true)
+    const { data } = await supabase.from('store_requests').select('*').order('created_at', { ascending: false }).limit(100)
+    setPastRequests(data || [])
+    setPastLoading(false)
+  }
+
+  useEffect(() => { loadPastRequests() }, [])
 
   useEffect(() => {
     if (!form.category) { setBrands([]); return }
@@ -83,27 +96,12 @@ export default function StoreRequest() {
     // Email notification is handled server-side via Supabase triggers
     setLoading(false)
     setSuccess(true)
+    loadPastRequests()
+    setTimeout(() => { setSuccess(false); setForm({store:'',category:'',brand_names:'',assortment_type:'All SKUs',sku_details:'',comment:'',notify_email:''}); setActiveTab('past') }, 1500)
   }
 
-  if (success) return (
-    <div className="max-w-lg mx-auto mt-24 text-center px-4 fade-in">
-      <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
-        <CheckCircle className="text-success" size={32} />
-      </div>
-      <h2 className="font-display text-2xl font-bold text-ink mb-2">Request Submitted!</h2>
-      <p className="text-muted font-body text-sm mb-6">
-        Your promo request has been recorded. A notification has been sent to <span className="font-medium text-ink">{form.notify_email}</span>.
-      </p>
-      <button
-        onClick={() => { setSuccess(false); setForm({ ...BLANK }) }}
-        className="bg-accent text-white font-body font-medium px-6 py-2.5 rounded-lg hover:bg-orange-700 transition-colors text-sm">
-        Submit Another Request
-      </button>
-    </div>
-  )
-
   return (
-    <div className="max-w-xl mx-auto px-4 py-8 fade-in">
+    <div className="max-w-4xl mx-auto px-4 py-8 fade-in">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center">
           <Store size={18} className="text-accent" />
@@ -113,6 +111,22 @@ export default function StoreRequest() {
           <p className="text-xs font-body text-muted mt-0.5">Request a promo for your store</p>
         </div>
       </div>
+      <div className="flex gap-1 bg-white border border-border rounded-xl p-1 w-fit mb-6">
+        {[{id:'request',label:'New Request'},{id:'past',label:'Past Requests'}].map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)}
+            className={`px-4 py-2 rounded-lg text-sm font-body font-medium transition-colors ${activeTab === t.id ? 'bg-ink text-white' : 'text-muted hover:text-ink'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {success && (
+        <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 mb-4">
+          <CheckCircle size={15} className="text-success" />
+          <p className="text-sm font-body text-success">Request submitted! Redirecting to past requests…</p>
+        </div>
+      )}
+      {activeTab === 'request' && (
+      <div className="max-w-xl">
 
       <form onSubmit={handleSubmit} className="space-y-5">
 
@@ -260,6 +274,62 @@ export default function StoreRequest() {
           </button>
         </div>
       </form>
+      </div>
+      )}
+      {activeTab === 'past' && (
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-display font-bold text-xl text-ink">Past Requests</h2>
+          <select
+            className="bg-white border border-border rounded-lg px-3 py-2 text-sm font-body focus:outline-none"
+            value={searchCat} onChange={e => setSearchCat(e.target.value)}>
+            <option value="">All Categories</option>
+            {['Beauty & Personal Care','Clothing','Electronics','Footwear','Gifting','Health & Wellness','Lifestyle','Luggage','Streetwear'].map(c => <option key={c}>{c}</option>)}
+          </select>
+        </div>
+        {pastLoading ? (
+          <div className="flex justify-center items-center h-24 gap-2 text-muted">
+            <Loader2 size={16} className="animate-spin" /><span className="text-sm">Loading…</span>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-border bg-white">
+            <table className="min-w-full text-sm font-body">
+              <thead className="bg-paper border-b border-border">
+                <tr>
+                  <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Date</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Store</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Category</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Brand</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Assortment</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Comment</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pastRequests.filter(r => !searchCat || r.category === searchCat).map((r, i) => (
+                  <tr key={i} className="border-b border-border last:border-0 hover:bg-paper/40">
+                    <td className="px-4 py-3 font-mono text-xs text-muted whitespace-nowrap">
+                      {r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'2-digit'}) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-ink">{r.store || '—'}</td>
+                    <td className="px-4 py-3 text-xs text-muted">{r.category || '—'}</td>
+                    <td className="px-4 py-3 font-medium text-xs text-ink">{r.brand_names || '—'}</td>
+                    <td className="px-4 py-3 text-xs text-muted">{r.assortment_type || '—'}</td>
+                    <td className="px-4 py-3 text-xs text-muted max-w-[200px] truncate" title={r.comment}>{r.comment || '—'}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-mono border ${r.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>{r.status || 'Pending'}</span>
+                    </td>
+                  </tr>
+                ))}
+                {pastRequests.filter(r => !searchCat || r.category === searchCat).length === 0 && (
+                  <tr><td colSpan={7} className="px-4 py-10 text-center text-muted text-sm">No requests found.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      )}
     </div>
   )
 }
