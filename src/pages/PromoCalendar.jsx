@@ -94,7 +94,7 @@ export default function TodayPromos() {
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h1 className="font-display text-3xl font-bold text-ink">Promo Calendar</h1>
+          <h1 className="font-display text-3xl font-bold text-ink">Store View</h1>
           <p className="text-muted text-sm font-body mt-0.5">
             {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
@@ -260,8 +260,9 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail }
   )
 
   const handlePickClick = () => {
-    // If already picked by someone else, confirm before overriding
-    if (isPicked && !pickedByMe) {
+    if (isPicked && pickedByMe) {
+      if (!window.confirm("Are you sure you want to unmark this promo as picked?")) return
+    } else if (isPicked && !pickedByMe) {
       const confirmed = window.confirm(
         `This was already picked by ${r.picked_by?.split('@')[0]}. Are you sure you want to change it?`
       )

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { exportCSV, todayISO, fmtDate } from '../lib/constants.jsx'
-import { Download, Loader2, TrendingUp, AlertTriangle, Star } from 'lucide-react'
+import { Download, Loader2, TrendingUp, AlertTriangle, Sparkles, Star } from 'lucide-react'
 
 const CATEGORIES = [
   'All Categories',
@@ -71,6 +71,8 @@ export default function Analytics() {
   const [monthFilter, setMonthFilter] = useState(6)
   const [storeFilter, setStoreFilter] = useState('All')
   const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split('T')[0])
+  const [aiInsight, setAiInsight] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
   // #2 — top brands list from Supabase
   const [topBrands, setTopBrands] = useState([])
   const [topBrandsFilter, setTopBrandsFilter] = useState(false)
@@ -117,6 +119,8 @@ export default function Analytics() {
       details: r.promotion_details || r.promotion_name || '',
       store: r.store || '',
       status: r.status || '',
+      assortment: r.assortment_type || '',
+      skuLink: '',
       source: 'historical',
     })),
     ...current.flatMap(r => {
@@ -129,6 +133,8 @@ export default function Analytics() {
         details: r.promo_details || r.promotion_name || '',
         store: r.store || '',
         status: r.status || '',
+        assortment: r.assortment_type || '',
+        skuLink: r.sku_file_link || '',
         source: 'current',
       }))
     }),
@@ -169,7 +175,7 @@ export default function Analytics() {
   const uniqueCategories = [...new Set(allPromos.map(r => r.category).filter(Boolean))].sort()
 
   const weeklyTable = uniqueCategories.map(cat => {
-    const catPromos = filtered.filter(r => r.category === cat)
+    const catPromos = allPromos.filter(r => r.category === cat)
     const weeks = last8Weeks.map(w => ({
       week: w,
       count: catPromos.filter(p => isActiveInWeek(p, w)).length,
@@ -180,7 +186,7 @@ export default function Analytics() {
   // ── #1: Unique brands per week × Category ───────────────────────────────
   const uniqueBrandsPerWeek = last8Weeks.map(w => {
     const brands = new Set(
-      filtered.filter(p => isActiveInWeek(p, w)).map(p => p.brand.trim().toLowerCase())
+      allPromos.filter(p => isActiveInWeek(p, w)).map(p => p.brand.trim().toLowerCase())
     )
     return { week: w, count: brands.size }
   })
@@ -211,7 +217,7 @@ export default function Analytics() {
     const month = getMonthKey(r.from)
     if (!month) return
     const brand = r.brand.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
-    if (!brandMonthMap[brand]) brandMonthMap[brand] = { store: r.store || '' }
+    if (!brandMonthMap[brand]) brandMonthMap[brand] = {}
     if (!brandMonthMap[brand][month]) brandMonthMap[brand][month] = new Set()
     if (r.details) brandMonthMap[brand][month].add(r.details.trim())
   })
@@ -243,7 +249,7 @@ export default function Analytics() {
     .map(b => {
       const promos = filtered.filter(r => r.brand === b)
       const last = promos.sort((a, b) => new Date(b.till) - new Date(a.till))[0]
-      return { brand: b, category: last?.category || '', store: last?.store || '', lastTill: last?.till || '', lastDetails: last?.details || '' }
+      return { brand: b, category: last?.category || '', lastTill: last?.till || '', lastDetails: last?.details || '' }
     })
     .sort((a, b) => a.category.localeCompare(b.category))
 
@@ -261,7 +267,7 @@ export default function Analytics() {
   filtered.forEach(r => {
     if (!r.till || r.till < today || r.till > in7DaysStr) return
     const key = r.brand + '|' + r.till
-    if (!endingSoonMapAll[key]) endingSoonMapAll[key] = { brand: r.brand, category: r.category, store: r.store || '', till: r.till, details: [] }
+    if (!endingSoonMapAll[key]) endingSoonMapAll[key] = { brand: r.brand, category: r.category, till: r.till, details: [] }
     if (r.details && !endingSoonMapAll[key].details.includes(r.details.trim()))
       endingSoonMapAll[key].details.push(r.details.trim())
   })
@@ -277,7 +283,18 @@ export default function Analytics() {
     .filter(r => r.from && r.till && r.from <= selectedDay && r.till >= selectedDay)
     .reduce((acc, r) => {
       const key = r.brand + '|' + r.category
-      if (!acc[key]) acc[key] = { brand: r.brand, category: r.category, offers: [] }
+      if (!acc[key]) acc[key] = {
+        brand: r.brand, category: r.category,
+        from: r.from, till: r.till,
+        assortment: r.assortment || '',
+        skuLink: r.skuLink || '',
+        offers: []
+      }
+      // Keep earliest from and latest till
+      if (r.from < acc[key].from) acc[key].from = r.from
+      if (r.till > acc[key].till) acc[key].till = r.till
+      if (r.assortment && !acc[key].assortment) acc[key].assortment = r.assortment
+      if (r.skuLink && !acc[key].skuLink) acc[key].skuLink = r.skuLink
       if (r.details && !acc[key].offers.includes(r.details.trim()))
         acc[key].offers.push(r.details.trim())
       return acc
@@ -297,6 +314,45 @@ export default function Analytics() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 50)
 
+  // ── AI Insights ───────────────────────────────────────────────────────────
+  const getAIInsights = async () => {
+    setAiLoading(true)
+    setAiInsight('')
+    const summary = {
+      totalPromos: allPromos.length,
+      droppedBrands: droppedBrandsAll.slice(0, 10).map(b => `${b.brand} (${b.category}, last: ${fmtDate(b.lastTill)})`),
+      topBrands: leaderboard.slice(0, 10).map(b => `${b.brand}: ${b.count} promos`),
+      categoryTotals: weeklyTable.map(r => `${r.category}: ${r.total} active weeks`),
+    }
+    const prompt = `You are a retail promotions analyst for Broadway, a multi-brand retail store in India.
+
+Here is the promo data summary:
+- Total promos analyzed: ${summary.totalPromos}
+- Top brands by promo volume: ${summary.topBrands.join(', ')}
+- Brands that were active last month but have NO promo this month (critical - need follow up): ${summary.droppedBrands.join(', ')}
+- Category activity (total active promo-weeks in last 8 weeks): ${summary.categoryTotals.join(', ')}
+
+Please provide:
+1. 3 key insights about promo activity patterns
+2. Top 5 brands to prioritize for new promos (based on gap since last promo or high historical volume)
+3. Any category that seems underserved or overserved
+4. One actionable recommendation
+
+Keep it concise and actionable. Use bullet points.`
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    })
+    const data = await res.json()
+    setAiInsight(data.content?.[0]?.text || 'Could not generate insights.')
+    setAiLoading(false)
+  }
 
   const tabs = [
     { id: 'weekly', label: 'Weekly Activity' },
@@ -304,6 +360,7 @@ export default function Analytics() {
     { id: 'dropped', label: 'Critical Brands' },
     { id: 'dayview', label: '📅 Day View' },
     { id: 'ending', label: '⏰ Ending Soon' },
+    { id: 'ai', label: '✨ AI Insights' },
   ]
 
   // #2 — show top brands toggle on all tabs
@@ -373,6 +430,54 @@ export default function Analytics() {
           {/* Table 1: Weekly Activity */}
           {tab === 'weekly' && (
             <div className="space-y-6">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="font-display font-bold text-xl text-ink">
+                    Category Activity — Last 8 Weeks
+                  </h2>
+                  <button onClick={() => exportCSV(
+                    weeklyTable.map(r => ({ category: r.category, ...r.weeks.reduce((a,w) => ({...a,[w.week]:w.count}),{}), total: r.total })),
+                    'weekly-activity.csv'
+                  )} className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
+                    <Download size={12} /> Export
+                  </button>
+                </div>
+                <div className="overflow-x-auto rounded-xl border border-border bg-white">
+                  <table className="min-w-full text-sm font-body">
+                    <thead className="bg-paper border-b border-border">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted sticky left-0 bg-paper">Category</th>
+                        {last8Weeks.map(w => (
+                          <th key={w} className="px-3 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted whitespace-nowrap">{w}</th>
+                        ))}
+                        <th className="px-3 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {weeklyTable.map(row => (
+                        <tr key={row.category} className="border-b border-border last:border-0 hover:bg-paper/40">
+                          <td className="px-4 py-3 font-medium text-ink sticky left-0 bg-white">{row.category}</td>
+                          {row.weeks.map(w => (
+                            <td key={w.week} className="px-3 py-3 text-center">
+                              {w.count > 0 ? (
+                                <span className={`inline-block min-w-[24px] rounded px-1.5 py-0.5 text-xs font-mono font-bold ${
+                                  w.count >= 10 ? 'bg-emerald-100 text-emerald-700' :
+                                  w.count >= 5 ? 'bg-blue-100 text-blue-700' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>{w.count}</span>
+                              ) : (
+                                <span className="text-border">—</span>
+                              )}
+                            </td>
+                          ))}
+                          <td className="px-3 py-3 text-center font-mono font-bold text-ink">{row.total}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
               {/* #1 — Unique brands per week × Category */}
               <div>
                 <h2 className="font-display font-bold text-xl text-ink mb-3">
@@ -438,10 +543,8 @@ export default function Analytics() {
                   ))}
                 </div>
                 <button onClick={() => exportCSV(
-                  (topBrandsFilter ? brandMonthTable.filter(r => isTopBrand(r.brand)) : brandMonthTable).map(r => ({
+                  brandMonthTable.map(r => ({
                     brand: r.brand,
-                    is_top_brand: isTopBrand(r.brand) ? 'Yes' : 'No',
-                    store: r.store || '',
                     ...last6Months.reduce((acc2, m) => ({ ...acc2, [fmtMonth(m)]: (r.months[m] || []).join(' | ') }), {})
                   })),
                   'brand-monthly.csv'
@@ -454,7 +557,6 @@ export default function Analytics() {
                   <thead className="bg-paper border-b border-border">
                     <tr>
                       <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted sticky left-0 bg-paper">Brand</th>
-                      {storeFilter === 'All' && <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Store</th>}
                       {last6Months.map(m => (
                         <th key={m} className="px-3 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted whitespace-nowrap">{fmtMonth(m)}</th>
                       ))}
@@ -469,7 +571,6 @@ export default function Analytics() {
                             {row.brand}
                           </span>
                         </td>
-                        {storeFilter === 'All' && <td className="px-4 py-3 text-xs text-muted">{row.store || '—'}</td>}
                         {last6Months.map(m => (
                           <td key={m} className="px-3 py-3 text-xs text-muted max-w-[180px]">
                             {row.months[m] ? (
@@ -506,7 +607,7 @@ export default function Analytics() {
                     {topBrandsFilter && <span className="ml-2 text-amber-600 font-medium">· Top Brands only</span>}
                   </p>
                 </div>
-                <button onClick={() => exportCSV(droppedBrands.map(b => ({ brand: b.brand, is_top_brand: isTopBrand(b.brand) ? 'Yes' : 'No', category: b.category, store: b.store || '', last_promo_ended: b.lastTill, last_offer: b.lastDetails })), 'critical-brands.csv')}
+                <button onClick={() => exportCSV(droppedBrands, 'critical-brands.csv')}
                   className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
                   <Download size={12} /> Export
                 </button>
@@ -526,7 +627,6 @@ export default function Analytics() {
                       <tr>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Brand</th>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Category</th>
-                        {storeFilter === 'All' && <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Store</th>}
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Last Promo Ended</th>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Last Offer</th>
                       </tr>
@@ -541,7 +641,6 @@ export default function Analytics() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-muted">{b.category}</td>
-                          {storeFilter === 'All' && <td className="px-4 py-3 text-xs text-muted">{b.store || '—'}</td>}
                           <td className="px-4 py-3 font-mono text-xs text-danger">{fmtDate(b.lastTill)}</td>
                           <td className="px-4 py-3 text-xs text-muted max-w-[200px] truncate">{b.lastDetails || '—'}</td>
                         </tr>
@@ -568,7 +667,7 @@ export default function Analytics() {
                     onChange={e => setSelectedDay(e.target.value)}
                   />
                   <span className="text-sm text-muted font-body">{dayPromosList.length} promos live</span>
-                  <button onClick={() => exportCSV(dayPromosList.map(r => ({ brand: r.brand, is_top_brand: isTopBrand(r.brand) ? 'Yes' : 'No', category: r.category, store: r.store || '', offers: r.offers.join(' | ') })), `live-promos-${selectedDay}.csv`)}
+                  <button onClick={() => exportCSV(dayPromosList.map(r => ({...r, offers: r.offers.join(' | ')})), `live-promos-${selectedDay}.csv`)}
                     className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
                     <Download size={12} /> Export
                   </button>
@@ -586,6 +685,10 @@ export default function Analytics() {
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">#</th>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Brand</th>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Category</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Start Date</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">End Date</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Assortment</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">SKU File</th>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Live Offers</th>
                       </tr>
                     </thead>
@@ -595,7 +698,15 @@ export default function Analytics() {
                           <td className="px-4 py-3 text-muted font-mono text-xs">{i + 1}</td>
                           <td className="px-4 py-3 font-medium text-ink">{r.brand}</td>
                           <td className="px-4 py-3 text-muted text-xs">{r.category}</td>
-                          <td className="px-4 py-3 text-xs text-muted max-w-[300px]">
+                          <td className="px-4 py-3 font-mono text-xs text-ink">{fmtDate(r.from)}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-ink">{fmtDate(r.till)}</td>
+                          <td className="px-4 py-3 text-xs text-muted">{r.assortment || '—'}</td>
+                          <td className="px-4 py-3 text-xs">
+                            {r.skuLink
+                              ? <a href={r.skuLink} target="_blank" rel="noreferrer" className="text-accent hover:underline flex items-center gap-1"><ExternalLink size={10} /> View</a>
+                              : <span className="text-border">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-muted max-w-[250px]">
                             {r.offers.map((o, j) => (
                               <div key={j} className="bg-blue-50 text-blue-700 rounded px-2 py-0.5 text-[11px] mb-1 inline-block mr-1">{o}</div>
                             ))}
@@ -622,7 +733,7 @@ export default function Analytics() {
                     {topBrandsFilter && <span className="ml-2 text-amber-600 font-medium">· Top Brands only</span>}
                   </p>
                 </div>
-                <button onClick={() => exportCSV(endingSoonList.map(r => ({ brand: r.brand, is_top_brand: isTopBrand(r.brand) ? 'Yes' : 'No', category: r.category, store: r.store || '', ends_on: fmtDate(r.till), details: r.details.join(' | ') })), 'ending-soon.csv')}
+                <button onClick={() => exportCSV(endingSoonList.map(r => ({...r, details: r.details.join(' | ')})), 'ending-soon.csv')}
                   className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
                   <Download size={12} /> Export
                 </button>
@@ -638,7 +749,6 @@ export default function Analytics() {
                       <tr>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Brand</th>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Category</th>
-                        {storeFilter === 'All' && <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Store</th>}
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Ends On</th>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Offer Details</th>
                       </tr>
@@ -655,7 +765,6 @@ export default function Analytics() {
                               </span>
                             </td>
                             <td className="px-4 py-3 text-muted">{r.category}</td>
-                            {storeFilter === 'All' && <td className="px-4 py-3 text-xs text-muted">{r.store || '—'}</td>}
                             <td className="px-4 py-3">
                               <span className={`font-mono text-xs font-bold ${daysLeft <= 2 ? 'text-danger' : daysLeft <= 4 ? 'text-warning' : 'text-ink'}`}>
                                 {fmtDate(r.till)}
@@ -677,6 +786,45 @@ export default function Analytics() {
             </div>
           )}
 
+          {/* AI Insights */}
+          {tab === 'ai' && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-display font-bold text-xl text-ink flex items-center gap-2">
+                  <Sparkles size={20} className="text-accent" />
+                  AI Insights
+                </h2>
+                <button onClick={getAIInsights} disabled={aiLoading}
+                  className="flex items-center gap-1.5 bg-accent text-white text-sm font-body px-4 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors">
+                  {aiLoading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                  {aiLoading ? 'Analyzing…' : 'Generate Insights'}
+                </button>
+              </div>
+              {!aiInsight && !aiLoading && (
+                <div className="bg-white border border-border rounded-xl py-16 text-center">
+                  <Sparkles size={28} className="mx-auto mb-3 text-accent opacity-50" />
+                  <p className="font-body text-muted text-sm">Click "Generate Insights" to get AI-powered analysis of your promo data.</p>
+                  <p className="font-body text-muted text-xs mt-1">Analyzes {allPromos.length.toLocaleString()} promos across all brands and categories.</p>
+                </div>
+              )}
+              {aiLoading && (
+                <div className="bg-white border border-border rounded-xl py-16 text-center">
+                  <Loader2 size={28} className="mx-auto mb-3 text-accent animate-spin" />
+                  <p className="font-body text-muted text-sm">Analyzing your promo data…</p>
+                </div>
+              )}
+              {aiInsight && !aiLoading && (
+                <div className="bg-white border border-border rounded-xl p-6">
+                  <div className="prose prose-sm max-w-none font-body text-ink whitespace-pre-wrap leading-relaxed">
+                    {aiInsight}
+                  </div>
+                  <p className="text-[11px] text-muted mt-4 pt-3 border-t border-border">
+                    Based on {allPromos.length.toLocaleString()} promos · Generated {new Date().toLocaleString('en-IN')}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>
