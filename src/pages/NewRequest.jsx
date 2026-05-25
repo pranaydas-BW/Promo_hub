@@ -367,6 +367,8 @@ export default function NewRequest() {
   const [error, setError] = useState(null)
   const [pocError, setPocError] = useState('')
   const [wantReversal, setWantReversal] = useState(false)
+  const [brandGroups, setBrandGroups] = useState([]) // [{brand, rows, included}]
+  const [isMultiBrand, setIsMultiBrand] = useState(false)
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -418,13 +420,37 @@ export default function NewRequest() {
       setError('Please upload the Reversal RSP file — required when reversal is selected.'); setLoading(false); return
     }
 
-    const payload = {
+    const basePayload = {
       ...form,
       offer_type: offerType,
       store: Array.isArray(form.store) ? form.store.join(', ') : form.store,
       date_ranges: validRanges,
       date_of_entry: todayISO(),
     }
+
+    // Multi-brand: create one entry per brand
+    if (isMultiBrand && brandGroups.filter(g => g.included).length > 1) {
+      const included = brandGroups.filter(g => g.included)
+      const errors = []
+      for (const bg of included) {
+        const brandPayload = {
+          ...basePayload,
+          brand_names: bg.brand,
+          sku_file_name: `${bg.brand}_${form.sku_file_name}`,
+          sku_file_data: JSON.stringify(bg.rows),
+          sku_file_link: form.sku_file_link, // same uploaded file, filtered on read
+        }
+        const { error: berr } = await supabase.from('promo_requests').insert([brandPayload])
+        if (berr) errors.push(bg.brand)
+      }
+      setLoading(false)
+      if (errors.length) { setError(`Failed for: ${errors.join(', ')}`); return }
+      setSuccess(true)
+      setTimeout(() => navigate('/'), 2000)
+      return
+    }
+
+    const payload = basePayload
 
     const { error: err, data: inserted } = await supabase
       .from('promo_requests').insert([payload]).select().single()
@@ -475,6 +501,9 @@ export default function NewRequest() {
       <h2 className="font-display text-2xl font-bold text-ink mb-2">Request Submitted!</h2>
       {offerType === 'RSP Update' && wantReversal && (
         <p className="text-muted font-body text-sm mb-1">A reversal entry has been automatically created on the Promo Board.</p>
+      )}
+      {isMultiBrand && brandGroups.filter(g => g.included).length > 1 && (
+        <p className="text-muted font-body text-sm mb-1">{brandGroups.filter(g => g.included).length} separate entries created — one per brand.</p>
       )}
       <p className="text-muted font-body text-sm">Taking you back to the board…</p>
     </div>
@@ -768,9 +797,55 @@ export default function NewRequest() {
                   set('sku_file_name', fileName)
                   set('sku_file_data', JSON.stringify(rows))
                   set('sku_file_link', url || '')
+                  // Detect multi-brand
+                  const brandCol = 'Brand Name'
+                  const brands = [...new Set(rows.map(r => (r[brandCol] || '').trim()).filter(Boolean))]
+                  if (brands.length > 1) {
+                    setIsMultiBrand(true)
+                    setBrandGroups(brands.map(brand => ({
+                      brand,
+                      rows: rows.filter(r => (r[brandCol] || '').trim() === brand),
+                      included: true,
+                    })))
+                  } else {
+                    setIsMultiBrand(false)
+                    setBrandGroups([])
+                  }
                 }}
-                onClear={() => { set('sku_file_name', ''); set('sku_file_data', '') }}
+                onClear={() => {
+                  set('sku_file_name', ''); set('sku_file_data', '')
+                  setIsMultiBrand(false); setBrandGroups([])
+                }}
               />
+
+              {/* Multi-brand preview */}
+              {isMultiBrand && brandGroups.length > 0 && (
+                <div className="bg-white border border-blue-300 rounded-lg p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-display font-semibold text-ink">
+                      {brandGroups.length} brands detected — one entry will be created per brand
+                    </p>
+                    <span className="text-[10px] font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Multi-brand file</span>
+                  </div>
+                  <div className="space-y-2">
+                    {brandGroups.map((bg, i) => (
+                      <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 border ${bg.included ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-border opacity-50'}`}>
+                        <div className="flex items-center gap-2">
+                          <input type="checkbox" checked={bg.included}
+                            onChange={() => setBrandGroups(gs => gs.map((g, j) => j === i ? {...g, included: !g.included} : g))}
+                            className="rounded" />
+                          <span className="text-sm font-medium text-ink">{bg.brand}</span>
+                          <span className="text-[10px] font-mono text-muted">{bg.rows.length} SKUs</span>
+                        </div>
+                        {bg.included && (
+                          <span className="text-[10px] text-success font-mono">✓ Will create entry</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-muted">Uncheck brands you want to exclude. On submit, a separate promo request will be created for each checked brand.</p>
+                </div>
+              )}
             </div>
           )}
           {isPromo && form.assortment_type === 'All SKUs - Flat on All' && (
