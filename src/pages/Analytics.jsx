@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { exportCSV, todayISO, fmtDate } from '../lib/constants.jsx'
-import { Download, Loader2, TrendingUp, AlertTriangle, Sparkles, Star } from 'lucide-react'
+import { Download, Loader2, TrendingUp, AlertTriangle, Star, ExternalLink } from 'lucide-react'
 
 const CATEGORIES = [
   'All Categories',
