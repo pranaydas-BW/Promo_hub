@@ -407,6 +407,12 @@ export default function NewRequest() {
     if (!form.store || (Array.isArray(form.store) && form.store.length === 0)) {
       setError('Please select at least one store.'); setLoading(false); return
     }
+    if (!isMultiBrand && !form.brand_names) {
+      setError('Please select a brand.'); setLoading(false); return
+    }
+    if (isMultiBrand && brandGroups.filter(g => g.included).length === 0) {
+      setError('Please include at least one brand from the SKU file.'); setLoading(false); return
+    }
     if (!form.approval_email) {
       setError('Please upload the brand approval screenshot.'); setLoading(false); return
     }
@@ -598,13 +604,18 @@ export default function NewRequest() {
             </select>
           </Field>
 
-          <Field label="Brand Name(s)" required hint={
+          <Field label="Brand Name(s)" required={!isMultiBrand} hint={
+            isMultiBrand ? 'Brands will be taken from the uploaded SKU file' :
             !form.category ? 'Select a category first' :
             brandsLoading ? 'Loading brands…' :
             availableBrands.length === 0 ? 'No brands found — add them in the Brands tab' :
             'Select a brand'
           }>
-            {availableBrands.length > 0 ? (
+            {isMultiBrand ? (
+              <div className="input-field opacity-60 bg-gray-50 text-muted text-sm">
+                Auto-detected from SKU file — {brandGroups.filter(g => g.included).length} brand(s) selected
+              </div>
+            ) : availableBrands.length > 0 ? (
               <select className="input-field" required value={form.brand_names}
                 onChange={e => set('brand_names', e.target.value)}>
                 <option value="">Select brand…</option>
