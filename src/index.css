@@ -7,10 +7,10 @@
   body {
     background-color: #F5F2EC;
     color: #0D0D0D;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Lexend', sans-serif;
     -webkit-font-smoothing: antialiased;
   }
-  h1, h2, h3, h4, h5 { font-family: 'Syne', sans-serif; }
+  h1, h2, h3, h4, h5 { font-family: 'Lexend', sans-serif; }
 }
 
 @layer components {

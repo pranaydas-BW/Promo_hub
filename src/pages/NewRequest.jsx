@@ -402,7 +402,8 @@ export default function NewRequest() {
     if (!isValidPOCEmail(form.poc_name)) { setPocError('Must be a valid @broadwaylive.in email'); return }
     if (splitError) return
     setLoading(true); setError(null)
-    const validRanges = form.date_ranges.filter(r => r.from && r.till)
+    const validRanges = form.date_ranges.filter(r => r.from && (r.till || (isRSP && !wantReversal)))
+    const normalizedRanges = validRanges.map(r => ({ ...r, till: r.till || r.from }))
     if (!validRanges.length) { setError('Please fill in at least one complete date range.'); setLoading(false); return }
     if (!form.store || (Array.isArray(form.store) && form.store.length === 0)) {
       setError('Please select at least one store.'); setLoading(false); return
@@ -430,7 +431,7 @@ export default function NewRequest() {
       ...form,
       offer_type: offerType,
       store: Array.isArray(form.store) ? form.store.join(', ') : form.store,
-      date_ranges: validRanges,
+      date_ranges: normalizedRanges,
       date_of_entry: todayISO(),
     }
 
