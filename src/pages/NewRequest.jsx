@@ -427,10 +427,11 @@ export default function NewRequest() {
       setError('Please upload the Reversal RSP file — required when reversal is selected.'); setLoading(false); return
     }
 
+    const storeStr = Array.isArray(form.store) ? form.store.join(', ') : form.store
     const basePayload = {
       ...form,
       offer_type: offerType,
-      store: Array.isArray(form.store) ? form.store.join(', ') : form.store,
+      store: storeStr,
       date_ranges: normalizedRanges,
       date_of_entry: todayISO(),
     }
