@@ -440,12 +440,34 @@ export default function NewRequest() {
       const included = brandGroups.filter(g => g.included)
       const errors = []
       for (const bg of included) {
+        // Generate and upload a brand-specific CSV file
+        let brandFileLink = ''
+        try {
+          const headers = Object.keys(bg.rows[0])
+          const csvLines = [
+            headers.join(','),
+            ...bg.rows.map(r => headers.map(h => {
+              const v = r[h] == null ? '' : String(r[h])
+              return v.includes(',') || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v
+            }).join(','))
+          ]
+          const csvBlob = new Blob([csvLines.join('\n')], { type: 'text/csv' })
+          const brandFileName = `promos/${Date.now()}_${bg.brand.replace(/[^a-zA-Z0-9]/g, '_')}_${form.sku_file_name}`
+          const { error: uploadErr } = await supabase.storage
+            .from('promo-files').upload(brandFileName, csvBlob, { upsert: false })
+          if (!uploadErr) {
+            const { data: { publicUrl } } = supabase.storage
+              .from('promo-files').getPublicUrl(brandFileName)
+            brandFileLink = publicUrl
+          }
+        } catch (e) { console.error('Brand file upload error', e) }
+
         const brandPayload = {
           ...basePayload,
           brand_names: bg.brand,
           sku_file_name: `${bg.brand}_${form.sku_file_name}`,
           sku_file_data: JSON.stringify(bg.rows),
-          sku_file_link: form.sku_file_link, // same uploaded file, filtered on read
+          sku_file_link: brandFileLink || form.sku_file_link,
         }
         const { error: berr } = await supabase.from('promo_requests').insert([brandPayload])
         if (berr) errors.push(bg.brand)
