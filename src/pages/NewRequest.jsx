@@ -1014,8 +1014,26 @@ function CsvUploadField({ offerType, value, onParsed, onClear }) {
           setError(`Missing required columns: ${missing.join(', ')}. Please use the sample format.`)
           return
         }
+        const parseCSVLine = (line) => {
+          const result = []
+          let current = ''
+          let inQuotes = false
+          for (let i = 0; i < line.length; i++) {
+            if (line[i] === '"') {
+              if (inQuotes && line[i+1] === '"') { current += '"'; i++ }
+              else inQuotes = !inQuotes
+            } else if (line[i] === ',' && !inQuotes) {
+              result.push(current.trim())
+              current = ''
+            } else {
+              current += line[i]
+            }
+          }
+          result.push(current.trim())
+          return result
+        }
         const rows = lines.slice(1).map(line => {
-          const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''))
+          const vals = parseCSVLine(line)
           return headers.reduce((obj, h, i) => ({ ...obj, [h]: vals[i] || '' }), {})
         }).filter(r => r['Barcode'])
         if (rows.length === 0) { setError('No valid data rows found in the file.'); return }
