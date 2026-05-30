@@ -6,7 +6,7 @@ import {
   STATUS_OPTIONS, CURRENT_STATUS_OPTIONS, SHOPIFY_STATUS_OPTIONS,
   CATEGORIES, STATUS_STYLES, fmtDate, exportCSV,
 } from '../lib/constants.jsx'
-import { Search, RefreshCw, Plus, ChevronDown, ExternalLink, Loader2, Filter, Download, RotateCcw } from 'lucide-react'
+import { Search, RefreshCw, Plus, ChevronDown, ExternalLink, Loader2, Filter, Download, RotateCcw, Pencil, History, X, Check } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 
 // Get the earliest start date from date_ranges
@@ -31,7 +31,7 @@ function groupByStartDate(rows) {
 }
 
 export default function Board() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, user } = useAuth()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -199,7 +199,8 @@ export default function Board() {
                     onToggle={() => setExpandedId(expandedId === r.id ? null : r.id)}
                     onPatch={patch} updating={updatingId === r.id}
                     isAdmin={isAdmin}
-                    allRows={rows} />
+                    allRows={rows}
+                    userEmail={user?.email} />
                 ))}
               </div>
             </div>
@@ -210,7 +211,7 @@ export default function Board() {
   )
 }
 
-function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allRows }) {
+function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allRows, userEmail }) {
   const ranges = Array.isArray(r.date_ranges) ? r.date_ranges : []
   const first = ranges[0] || {}
 
@@ -467,6 +468,9 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
           )}
 
           {isAdmin && (
+            <EditPanel row={r} onPatch={onPatch} isAdmin={isAdmin} userEmail={userEmail} />
+          )}
+          {isAdmin && (
             <StatusPanel row={r} onPatch={onPatch} updating={updating} allRows={allRows} />
           )}
         </div>
@@ -500,6 +504,148 @@ function ELink({ href, label }) {
       className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
       <ExternalLink size={11} /> {label}
     </a>
+  )
+}
+
+function EditPanel({ row: r, onPatch, isAdmin, userEmail }) {
+  const [open, setOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [editHistory, setEditHistory] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [draft, setDraft] = useState({
+    promo_details: r.promo_details || '',
+    store: r.store || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const isDirty =
+    draft.promo_details !== (r.promo_details || '') ||
+    draft.store !== (r.store || '')
+
+  const handleSave = async () => {
+    setSaving(true)
+    const changes = []
+    if (draft.promo_details !== (r.promo_details || '')) {
+      changes.push({ promo_request_id: r.promo_request_id, field_name: 'promo_details', old_value: r.promo_details || '', new_value: draft.promo_details, edited_by: userEmail })
+    }
+    if (draft.store !== (r.store || '')) {
+      changes.push({ promo_request_id: r.promo_request_id, field_name: 'store', old_value: r.store || '', new_value: draft.store, edited_by: userEmail })
+    }
+    if (changes.length) {
+      await supabase.from('promo_edits').insert(changes)
+      await onPatch(r.id, { promo_details: draft.promo_details, store: draft.store })
+    }
+    setSaving(false)
+    setSaved(true)
+    setOpen(false)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const loadHistory = async () => {
+    setHistoryLoading(true)
+    const { data } = await supabase
+      .from('promo_edits')
+      .select('*')
+      .eq('promo_request_id', r.promo_request_id)
+      .order('edited_at', { ascending: false })
+    setEditHistory(data || [])
+    setHistoryLoading(false)
+  }
+
+  const toggleHistory = () => {
+    if (!historyOpen) loadHistory()
+    setHistoryOpen(h => !h)
+  }
+
+  if (!isAdmin) return null
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="flex items-center gap-1.5 text-[11px] font-body text-muted hover:text-ink transition-colors"
+        >
+          <Pencil size={11} />
+          {open ? 'Cancel Edit' : 'Edit Fields'}
+        </button>
+        <button
+          onClick={toggleHistory}
+          className="flex items-center gap-1.5 text-[11px] font-body text-muted hover:text-ink transition-colors"
+        >
+          <History size={11} />
+          Edit History
+        </button>
+        {saved && <span className="text-[11px] text-success">✓ Saved</span>}
+      </div>
+
+      {open && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3 fade-in">
+          <p className="text-[11px] font-mono uppercase tracking-widest text-blue-700">Edit Fields</p>
+          <div>
+            <label className="text-[10px] font-mono uppercase text-muted mb-1 block">Promotion Details</label>
+            <textarea
+              className="w-full bg-white border border-border rounded-lg px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-accent/20 resize-none"
+              rows={3}
+              value={draft.promo_details}
+              onChange={e => setDraft(d => ({ ...d, promo_details: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-mono uppercase text-muted mb-1 block">Store</label>
+            <input
+              className="w-full bg-white border border-border rounded-lg px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-accent/20"
+              value={draft.store}
+              onChange={e => setDraft(d => ({ ...d, store: e.target.value }))}
+            />
+          </div>
+          {isDirty && (
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-1.5 bg-accent text-white text-xs font-body px-3 py-1.5 rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors"
+            >
+              {saving ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+              {saving ? 'Saving…' : 'Save Changes'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {historyOpen && (
+        <div className="bg-paper border border-border rounded-lg p-4 space-y-3 fade-in">
+          <p className="text-[11px] font-mono uppercase tracking-widest text-muted">Edit History</p>
+          {historyLoading ? (
+            <div className="flex items-center gap-2 text-muted text-xs">
+              <Loader2 size={12} className="animate-spin" /> Loading…
+            </div>
+          ) : editHistory.length === 0 ? (
+            <p className="text-xs text-muted">No edits recorded.</p>
+          ) : (
+            <div className="space-y-2">
+              {editHistory.map((e, i) => (
+                <div key={i} className="text-[11px] font-body border-b border-border pb-2 last:border-0">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="font-medium text-ink capitalize">{e.field_name.replace('_', ' ')}</span>
+                    <span className="font-mono text-muted">
+                      {new Date(e.edited_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <span className="text-muted">by </span>
+                  <span className="font-medium text-ink">{e.edited_by?.split('@')[0]}</span>
+                  <div className="mt-1 flex gap-2">
+                    <span className="bg-red-50 text-red-600 px-1.5 py-0.5 rounded text-[10px] line-through">{e.old_value || '—'}</span>
+                    <span className="text-muted">→</span>
+                    <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[10px]">{e.new_value || '—'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
