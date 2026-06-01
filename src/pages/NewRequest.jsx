@@ -369,6 +369,8 @@ export default function NewRequest() {
   const [wantReversal, setWantReversal] = useState(false)
   const [brandGroups, setBrandGroups] = useState([]) // [{brand, rows, included}]
   const [isMultiBrand, setIsMultiBrand] = useState(false)
+  const [isAllSkuMultiBrand, setIsAllSkuMultiBrand] = useState(false)
+  const [allSkuBrands, setAllSkuBrands] = useState([]) // list of selected brand names
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -408,8 +410,11 @@ export default function NewRequest() {
     if (!form.store || (Array.isArray(form.store) && form.store.length === 0)) {
       setError('Please select at least one store.'); setLoading(false); return
     }
-    if (!isMultiBrand && !form.brand_names) {
+    if (!isMultiBrand && !isAllSkuMultiBrand && !form.brand_names) {
       setError('Please select a brand.'); setLoading(false); return
+    }
+    if (isAllSkuMultiBrand && allSkuBrands.length === 0) {
+      setError('Please select at least one brand.'); setLoading(false); return
     }
     if (isMultiBrand && brandGroups.filter(g => g.included).length === 0) {
       setError('Please include at least one brand from the SKU file.'); setLoading(false); return
@@ -436,7 +441,22 @@ export default function NewRequest() {
       date_of_entry: todayISO(),
     }
 
-    // Multi-brand: create one entry per brand
+    // All SKUs multi-brand: create one entry per brand
+    if (isPromo && isAllSkuMultiBrand && allSkuBrands.length > 1) {
+      const errors = []
+      for (const brand of allSkuBrands) {
+        const brandPayload = { ...basePayload, brand_names: brand }
+        const { error: berr } = await supabase.from('promo_requests').insert([brandPayload])
+        if (berr) errors.push(brand)
+      }
+      setLoading(false)
+      if (errors.length) { setError(`Failed for: ${errors.join(', ')}`); return }
+      setSuccess(true)
+      setTimeout(() => navigate('/'), 2000)
+      return
+    }
+
+    // SKU file multi-brand: create one entry per brand
     if (isMultiBrand && brandGroups.filter(g => g.included).length > 1) {
       const included = brandGroups.filter(g => g.included)
       const errors = []
@@ -534,6 +554,9 @@ export default function NewRequest() {
       )}
       {isMultiBrand && brandGroups.filter(g => g.included).length > 1 && (
         <p className="text-muted font-body text-sm mb-1">{brandGroups.filter(g => g.included).length} separate entries created — one per brand.</p>
+      )}
+      {isAllSkuMultiBrand && allSkuBrands.length > 1 && (
+        <p className="text-muted font-body text-sm mb-1">{allSkuBrands.length} separate entries created — one per brand.</p>
       )}
       <p className="text-muted font-body text-sm">Taking you back to the board…</p>
     </div>
@@ -638,6 +661,10 @@ export default function NewRequest() {
             {isMultiBrand ? (
               <div className="input-field opacity-60 bg-gray-50 text-muted text-sm">
                 Auto-detected from SKU file — {brandGroups.filter(g => g.included).length} brand(s) selected
+              </div>
+            ) : isAllSkuMultiBrand ? (
+              <div className="input-field opacity-60 bg-gray-50 text-muted text-sm">
+                {allSkuBrands.length > 0 ? `${allSkuBrands.length} brand(s) selected below` : 'Select brands below in the assortment section'}
               </div>
             ) : availableBrands.length > 0 ? (
               <select className="input-field" required value={form.brand_names}
@@ -884,8 +911,55 @@ export default function NewRequest() {
             </div>
           )}
           {isPromo && form.assortment_type === 'All SKUs - Flat on All' && (
-            <div className="bg-gray-50 border border-border rounded-lg px-4 py-3">
-              <p className="text-xs text-muted font-body">ℹ No SKU file needed for <span className="font-semibold">All SKUs - Flat on All</span> — applies to entire assortment.</p>
+            <div className="bg-gray-50 border border-border rounded-lg p-4 space-y-3">
+              <p className="text-xs text-muted font-body">ℹ No SKU file needed — applies to entire assortment.</p>
+              <div>
+                <p className="text-xs font-display font-semibold text-ink mb-2">Does this promo apply to multiple brands?</p>
+                <div className="flex gap-3">
+                  {['Yes', 'No'].map(opt => (
+                    <label key={opt} className={`flex items-center gap-2 border-2 rounded-lg px-4 py-2 cursor-pointer transition-all text-sm font-body font-medium ${
+                      (opt === 'Yes' ? isAllSkuMultiBrand : !isAllSkuMultiBrand)
+                        ? 'border-accent bg-accent/5 text-accent'
+                        : 'border-border bg-white text-muted hover:border-ink/40'
+                    }`}>
+                      <input type="radio" className="hidden"
+                        checked={opt === 'Yes' ? isAllSkuMultiBrand : !isAllSkuMultiBrand}
+                        onChange={() => {
+                          setIsAllSkuMultiBrand(opt === 'Yes')
+                          setAllSkuBrands([])
+                        }} />
+                      {opt}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {isAllSkuMultiBrand && (
+                <div className="space-y-2">
+                  <p className="text-xs font-display font-semibold text-ink">
+                    Select brands ({allSkuBrands.length} selected)
+                    {!form.category && <span className="text-muted font-normal ml-1">— select a category first</span>}
+                  </p>
+                  {form.category && availableBrands.length > 0 && (
+                    <div className="max-h-48 overflow-y-auto border border-border rounded-lg bg-white divide-y divide-border">
+                      {availableBrands.map(b => (
+                        <label key={b} className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-paper transition-colors ${allSkuBrands.includes(b) ? 'bg-accent/5' : ''}`}>
+                          <input type="checkbox"
+                            checked={allSkuBrands.includes(b)}
+                            onChange={() => setAllSkuBrands(prev =>
+                              prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b]
+                            )}
+                            className="rounded" />
+                          <span className="text-sm font-body text-ink">{b}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  {allSkuBrands.length > 0 && (
+                    <p className="text-[11px] text-accent">✓ {allSkuBrands.length} brand{allSkuBrands.length > 1 ? 's' : ''} selected — one entry will be created per brand on submit</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </Section>
