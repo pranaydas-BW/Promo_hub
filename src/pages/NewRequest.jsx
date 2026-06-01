@@ -1122,6 +1122,9 @@ function CsvUploadField({ offerType, value, onParsed, onClear }) {
             .from('promo-files').getPublicUrl(fileName)
           publicUrl = url
         }
+        if (!publicUrl) {
+          setError('File parsed but upload to storage failed — the file link may be missing. Try re-uploading.')
+        }
         onParsed(file.name, rows, publicUrl)
       } catch {
         setError('Could not read the file. Make sure it is a valid CSV.')
