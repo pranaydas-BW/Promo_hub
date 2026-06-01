@@ -6,7 +6,7 @@ import {
   STATUS_OPTIONS, CURRENT_STATUS_OPTIONS, SHOPIFY_STATUS_OPTIONS,
   CATEGORIES, STATUS_STYLES, fmtDate, exportCSV,
 } from '../lib/constants.jsx'
-import { Search, RefreshCw, Plus, ChevronDown, ExternalLink, Loader2, Filter, Download, RotateCcw, Pencil, History, X, Check } from 'lucide-react'
+import { Search, RefreshCw, Plus, ChevronDown, ExternalLink, Loader2, Filter, Download, RotateCcw, Pencil, History, X, Check, Upload } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 
 // Get the earliest start date from date_ranges
@@ -439,6 +439,10 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
                     <Download size={11} /> {r.sku_file_name}
                   </button>
                 )}
+                {/* Re-upload SKU file if name exists but link is missing */}
+                {isAdmin && !isRSPReversal && r.offer_type !== 'RSP Update' && r.sku_file_name && !r.sku_file_link && (
+                  <SkuReUpload row={r} onPatch={onPatch} />
+                )}
                 {/* RSP file — only for RSP Updates (not reversals) */}
                 {r.offer_type === 'RSP Update' && !isRSPReversal && r.rsp_file_link && <ELink href={r.rsp_file_link} label="RSP File" />}
                 {r.offer_type === 'RSP Update' && !isRSPReversal && r.rsp_file_name && r.rsp_file_data && (
@@ -646,6 +650,35 @@ function EditPanel({ row: r, onPatch, isAdmin, userEmail }) {
         </div>
       )}
     </div>
+  )
+}
+
+function SkuReUpload({ row: r, onPatch }) {
+  const [uploading, setUploading] = useState(false)
+  const [done, setDone] = useState(false)
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    const fileName = `promos/${Date.now()}_${file.name.replace(/\s+/g, '_')}`
+    const { error: uploadError } = await supabase.storage
+      .from('promo-files').upload(fileName, file, { upsert: false })
+    if (uploadError) { setUploading(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('promo-files').getPublicUrl(fileName)
+    await onPatch(r.id, { sku_file_link: publicUrl, sku_file_name: file.name })
+    setUploading(false)
+    setDone(true)
+  }
+
+  if (done) return <span className="text-[11px] text-success">✓ SKU file uploaded</span>
+
+  return (
+    <label className={`flex items-center gap-1.5 text-xs font-body cursor-pointer px-2 py-1 rounded border transition-colors ${uploading ? 'text-muted border-border' : 'text-warning border-amber-200 bg-amber-50 hover:bg-amber-100'}`}>
+      {uploading ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
+      {uploading ? 'Uploading…' : `Re-upload SKU (${r.sku_file_name})`}
+      <input type="file" accept=".csv" className="hidden" disabled={uploading} onChange={handleFile} />
+    </label>
   )
 }
 
