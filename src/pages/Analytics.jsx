@@ -432,6 +432,45 @@ Keep it concise and actionable. Use bullet points.`
           {/* Table 1: Weekly Activity */}
           {tab === 'weekly' && (
             <div className="space-y-6">
+              {/* #1 — Unique brands per week × Category */}
+              <div>
+                <h2 className="font-display font-bold text-xl text-ink mb-3">
+                  Unique Brands Active Per Week — By Category
+                </h2>
+                <div className="overflow-x-auto rounded-xl border border-border bg-white">
+                  <table className="min-w-full text-sm font-body">
+                    <thead className="bg-paper border-b border-border">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted sticky left-0 bg-paper">Category</th>
+                        {last8Weeks.map(w => (
+                          <th key={w} className="px-3 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted whitespace-nowrap">{w}</th>
+                        ))}
+                        <th className="px-3 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {uniqueBrandsByCatWeek.map(row => (
+                        <tr key={row.category} className="border-b border-border last:border-0 hover:bg-paper/40">
+                          <td className="px-4 py-3 font-medium text-ink sticky left-0 bg-white">{row.category}</td>
+                          {row.weeks.map(w => (
+                            <td key={w.week} className="px-3 py-3 text-center">
+                              {w.count > 0 ? (
+                                <span className={`inline-block min-w-[24px] rounded px-1.5 py-0.5 text-xs font-mono font-bold ${
+                                  w.count >= 15 ? 'bg-emerald-100 text-emerald-700' :
+                                  w.count >= 8 ? 'bg-blue-100 text-blue-700' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>{w.count}</span>
+                              ) : <span className="text-border">—</span>}
+                            </td>
+                          ))}
+                          <td className="px-3 py-3 text-center font-mono font-bold text-ink">{row.total}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="font-display font-bold text-xl text-ink">
@@ -480,44 +519,7 @@ Keep it concise and actionable. Use bullet points.`
                 </div>
               </div>
 
-              {/* #1 — Unique brands per week × Category */}
-              <div>
-                <h2 className="font-display font-bold text-xl text-ink mb-3">
-                  Unique Brands Active Per Week — By Category
-                </h2>
-                <div className="overflow-x-auto rounded-xl border border-border bg-white">
-                  <table className="min-w-full text-sm font-body">
-                    <thead className="bg-paper border-b border-border">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted sticky left-0 bg-paper">Category</th>
-                        {last8Weeks.map(w => (
-                          <th key={w} className="px-3 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted whitespace-nowrap">{w}</th>
-                        ))}
-                        <th className="px-3 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {uniqueBrandsByCatWeek.map(row => (
-                        <tr key={row.category} className="border-b border-border last:border-0 hover:bg-paper/40">
-                          <td className="px-4 py-3 font-medium text-ink sticky left-0 bg-white">{row.category}</td>
-                          {row.weeks.map(w => (
-                            <td key={w.week} className="px-3 py-3 text-center">
-                              {w.count > 0 ? (
-                                <span className={`inline-block min-w-[24px] rounded px-1.5 py-0.5 text-xs font-mono font-bold ${
-                                  w.count >= 15 ? 'bg-emerald-100 text-emerald-700' :
-                                  w.count >= 8 ? 'bg-blue-100 text-blue-700' :
-                                  'bg-gray-100 text-gray-600'
-                                }`}>{w.count}</span>
-                              ) : <span className="text-border">—</span>}
-                            </td>
-                          ))}
-                          <td className="px-3 py-3 text-center font-mono font-bold text-ink">{row.total}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+
             </div>
           )}
 
