@@ -140,7 +140,7 @@ export default function Analytics() {
     }),
   ].filter(r => r.brand && r.from && r.till && !['Rejected','Deactivated'].includes(r.status))
 
-  const STORES = ['All', 'VK, Delhi', 'BH, Hyderabad', 'Pune']
+  const STORES = ['All', 'VK, Delhi', 'BH, Hyderabad', 'Pune', 'Mumbai']
 
   const storeFiltered = storeFilter === 'All'
     ? allPromos
@@ -234,18 +234,20 @@ export default function Analytics() {
     .sort((a, b) => a.brand.localeCompare(b.brand))
 
   // ── Table 3: Critical brands ──────────────────────────────────────────────
-  const thisMonth = getMonthKey(today)
-  const lastMonth = getMonthKey(new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString())
+  // Critical brands: promo ended within last 30 days, no active or future promo
+  const thirtyDaysAgo = new Date()
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0]
 
-  const lastMonthBrands = new Set(
-    filtered.filter(r => getMonthKey(r.from) === lastMonth || getMonthKey(r.till) === lastMonth)
+  const recentlyEndedBrands = new Set(
+    filtered.filter(r => r.till && r.till >= thirtyDaysAgoStr && r.till < today)
       .map(r => r.brand)
   )
-  const thisMonthBrands = new Set(
-    filtered.filter(r => getMonthKey(r.from) === thisMonth || getMonthKey(r.till) === thisMonth)
+  const activeOrFutureBrands = new Set(
+    filtered.filter(r => r.till && r.till >= today)
       .map(r => r.brand)
   )
-  const droppedBrandsAll = [...lastMonthBrands].filter(b => !thisMonthBrands.has(b))
+  const droppedBrandsAll = [...recentlyEndedBrands].filter(b => !activeOrFutureBrands.has(b))
     .map(b => {
       const promos = filtered.filter(r => r.brand === b)
       const last = promos.sort((a, b) => new Date(b.till) - new Date(a.till))[0]

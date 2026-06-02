@@ -4,7 +4,7 @@ import { useAuth } from '../lib/AuthContext'
 import { StatusBadge, CurrentStatusDot, exportCSV, fmtDate, todayISO } from '../lib/constants.jsx'
 import { Download, RefreshCw, CalendarCheck, CalendarX, Loader2, ExternalLink, Store } from 'lucide-react'
 
-const STORES = ['All', 'VK, Delhi', 'BH, Hyderabad', 'Pune']
+const STORES = ['All', 'VK, Delhi', 'BH, Hyderabad', 'Pune', 'Mumbai']
 
 function addDays(dateStr, n) {
   const d = new Date(dateStr)

@@ -12,7 +12,7 @@ export const CATEGORIES = [
   'Streetwear',
 ]
 
-export const STORE_OPTIONS = ['VK, Delhi', 'BH, Hyderabad', 'Pune']
+export const STORE_OPTIONS = ['VK, Delhi', 'BH, Hyderabad', 'Pune', 'Mumbai']
 
 export const OFFER_TYPES = ['Promotion', 'RSP Update']
 

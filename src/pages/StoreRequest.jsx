@@ -15,7 +15,7 @@ const CATEGORIES = [
   'Streetwear',
 ]
 
-const STORES = ['VK, Delhi', 'BH, Hyderabad', 'Pune']
+const STORES = ['VK, Delhi', 'BH, Hyderabad', 'Pune', 'Mumbai']
 
 const BLANK = {
   store: '',
