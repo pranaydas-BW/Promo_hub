@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { exportCSV, todayISO, fmtDate } from '../lib/constants.jsx'
-import { Download, Loader2, TrendingUp, AlertTriangle, Star, ExternalLink } from 'lucide-react'
+import { Download, Loader2, TrendingUp, AlertTriangle, Star, ExternalLink, Sparkles } from 'lucide-react'
 
 const CATEGORIES = [
   'All Categories',
@@ -71,6 +71,8 @@ export default function Analytics() {
   const [monthFilter, setMonthFilter] = useState(6)
   const [storeFilter, setStoreFilter] = useState('All')
   const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split('T')[0])
+  const [aiInsight, setAiInsight] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
   const [aiInsight, setAiInsight] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   // #2 — top brands list from Supabase
@@ -345,6 +347,50 @@ Keep it concise and actionable. Use bullet points.`
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    })
+    const data = await res.json()
+    setAiInsight(data.content?.[0]?.text || 'Could not generate insights.')
+    setAiLoading(false)
+  }
+
+  const getAIInsights = async () => {
+    setAiLoading(true)
+    setAiInsight('')
+    const summary = {
+      totalPromos: allPromos.length,
+      droppedBrands: droppedBrandsAll.slice(0, 10).map(b => `${b.brand} (${b.category}, last: ${fmtDate(b.lastTill)})`),
+      topBrandsList: leaderboard.slice(0, 10).map(b => `${b.brand}: ${b.count} promos`),
+      categoryTotals: weeklyTable.map(r => `${r.category}: ${r.total} active weeks`),
+    }
+    const prompt = `You are a retail promotions analyst for Broadway, a multi-brand retail store in India.
+
+Here is the promo data summary:
+- Total promos analyzed: ${summary.totalPromos}
+- Top brands by promo volume: ${summary.topBrandsList.join(', ')}
+- Brands that were active in last 30 days but have NO active promo now (critical - need follow up): ${summary.droppedBrands.join(', ')}
+- Category activity (total active promo-weeks in last 8 weeks): ${summary.categoryTotals.join(', ')}
+
+Please provide:
+1. 3 key insights about promo activity patterns
+2. Top 5 brands to prioritize for new promos
+3. Any category that seems underserved or overserved
+4. One actionable recommendation
+
+Keep it concise and actionable. Use bullet points.`
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': import.meta.env.VITE_ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
@@ -790,6 +836,45 @@ Keep it concise and actionable. Use bullet points.`
             </div>
           )}
 
+          {/* AI Insights */}
+          {tab === 'ai' && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-display font-bold text-xl text-ink flex items-center gap-2">
+                  <Sparkles size={20} className="text-accent" />
+                  AI Insights
+                </h2>
+                <button onClick={getAIInsights} disabled={aiLoading}
+                  className="flex items-center gap-1.5 bg-accent text-white text-sm font-body px-4 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors">
+                  {aiLoading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                  {aiLoading ? 'Analyzing…' : 'Generate Insights'}
+                </button>
+              </div>
+              {!aiInsight && !aiLoading && (
+                <div className="bg-white border border-border rounded-xl py-16 text-center">
+                  <Sparkles size={28} className="mx-auto mb-3 text-accent opacity-50" />
+                  <p className="font-body text-muted text-sm">Click "Generate Insights" to get AI-powered analysis of your promo data.</p>
+                  <p className="font-body text-muted text-xs mt-1">Analyzes {allPromos.length.toLocaleString()} promos across all brands and categories.</p>
+                </div>
+              )}
+              {aiLoading && (
+                <div className="bg-white border border-border rounded-xl py-16 text-center">
+                  <Loader2 size={28} className="mx-auto mb-3 text-accent animate-spin" />
+                  <p className="font-body text-muted text-sm">Analyzing your promo data…</p>
+                </div>
+              )}
+              {aiInsight && !aiLoading && (
+                <div className="bg-white border border-border rounded-xl p-6">
+                  <div className="prose prose-sm max-w-none font-body text-ink whitespace-pre-wrap leading-relaxed">
+                    {aiInsight}
+                  </div>
+                  <p className="text-[11px] text-muted mt-4 pt-3 border-t border-border">
+                    Based on {allPromos.length.toLocaleString()} promos · Generated {new Date().toLocaleString('en-IN')}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
           {/* AI Insights */}
           {tab === 'ai' && (
             <div>
