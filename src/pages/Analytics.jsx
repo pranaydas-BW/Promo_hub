@@ -73,8 +73,6 @@ export default function Analytics() {
   const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split('T')[0])
   const [aiInsight, setAiInsight] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
-  const [aiInsight, setAiInsight] = useState('')
-  const [aiLoading, setAiLoading] = useState(false)
   // #2 — top brands list from Supabase
   const [topBrands, setTopBrands] = useState([])
   const [topBrandsFilter, setTopBrandsFilter] = useState(false)
@@ -319,45 +317,6 @@ export default function Analytics() {
     .slice(0, 50)
 
   // ── AI Insights ───────────────────────────────────────────────────────────
-  const getAIInsights = async () => {
-    setAiLoading(true)
-    setAiInsight('')
-    const summary = {
-      totalPromos: allPromos.length,
-      droppedBrands: droppedBrandsAll.slice(0, 10).map(b => `${b.brand} (${b.category}, last: ${fmtDate(b.lastTill)})`),
-      topBrands: leaderboard.slice(0, 10).map(b => `${b.brand}: ${b.count} promos`),
-      categoryTotals: weeklyTable.map(r => `${r.category}: ${r.total} active weeks`),
-    }
-    const prompt = `You are a retail promotions analyst for Broadway, a multi-brand retail store in India.
-
-Here is the promo data summary:
-- Total promos analyzed: ${summary.totalPromos}
-- Top brands by promo volume: ${summary.topBrands.join(', ')}
-- Brands that were active last month but have NO promo this month (critical - need follow up): ${summary.droppedBrands.join(', ')}
-- Category activity (total active promo-weeks in last 8 weeks): ${summary.categoryTotals.join(', ')}
-
-Please provide:
-1. 3 key insights about promo activity patterns
-2. Top 5 brands to prioritize for new promos (based on gap since last promo or high historical volume)
-3. Any category that seems underserved or overserved
-4. One actionable recommendation
-
-Keep it concise and actionable. Use bullet points.`
-
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    })
-    const data = await res.json()
-    setAiInsight(data.content?.[0]?.text || 'Could not generate insights.')
-    setAiLoading(false)
-  }
-
   const getAIInsights = async () => {
     setAiLoading(true)
     setAiInsight('')
