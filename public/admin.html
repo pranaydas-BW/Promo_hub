@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Broadway Tools</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #F7F5F0;
+    --surface: #FFFFFF;
+    --border: #E4E0D8;
+    --border-hover: #C8C2B4;
+    --text: #1A1916;
+    --text-muted: #7A766C;
+    --text-faint: #B0AC9F;
+    --accent: #2D5A3D;
+    --accent-light: #EBF2ED;
+    --danger: #B83232;
+    --danger-light: #FBEAEA;
+    --tag-bg: #EFEDE8;
+    --tag-text: #5A5650;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  #gate {
+    position: fixed; inset: 0;
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+
+  .gate-box {
+    text-align: center;
+    color: #666;
+  }
+
+  .gate-box i { font-size: 32px; margin-bottom: 16px; display: block; color: #444; }
+  .gate-box p { font-size: 14px; margin-bottom: 4px; color: #555; }
+  .gate-box small { font-size: 12px; color: #444; font-family: 'DM Mono', monospace; }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2.5rem;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-mark { width: 32px; height: 32px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; font-weight: 500; }
+  .logo-name { font-size: 15px; font-weight: 500; }
+  .logo-divider { width: 1px; height: 16px; background: var(--border); }
+  .logo-sub { font-size: 13px; color: var(--text-muted); }
+
+  .admin-badge {
+    font-size: 11px;
+    background: var(--danger-light);
+    color: var(--danger);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+  }
+
+  main { max-width: 860px; margin: 0 auto; padding: 2.5rem 2rem; }
+
+  .page-title { font-size: 24px; font-weight: 300; letter-spacing: -0.4px; margin-bottom: 4px; }
+  .page-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 2rem; }
+
+  .add-form {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .form-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 1rem;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group.full { grid-column: 1 / -1; }
+
+  label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  input, select, textarea {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 8px 10px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+  }
+
+  textarea { resize: vertical; min-height: 60px; }
+
+  .form-actions { display: flex; justify-content: flex-end; }
+
+  .btn {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 18px;
+    border-radius: 7px;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: opacity 0.15s;
+  }
+
+  .btn:hover { opacity: 0.85; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-danger { background: var(--danger-light); color: var(--danger); border: 1px solid #f5c6c6; }
+  .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+
+  .links-list { display: flex; flex-direction: column; gap: 10px; }
+
+  .link-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: border-color 0.15s;
+  }
+
+  .link-row:hover { border-color: var(--border-hover); }
+
+  .link-icon {
+    width: 36px; height: 36px;
+    background: var(--accent-light);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--accent);
+    font-size: 17px;
+    flex-shrink: 0;
+  }
+
+  .link-info { flex: 1; min-width: 0; }
+  .link-name { font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+  .link-url { font-size: 12px; color: var(--accent); font-family: 'DM Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .link-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  .link-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+  .tag {
+    font-size: 11px;
+    background: var(--tag-bg);
+    color: var(--tag-text);
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+
+  .icon-btn {
+    width: 30px; height: 30px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted);
+    transition: background 0.15s, color 0.15s;
+    font-size: 15px;
+  }
+
+  .icon-btn:hover { background: var(--danger-light); color: var(--danger); border-color: #f5c6c6; }
+
+  .empty {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-faint);
+    font-size: 13px;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 2rem; right: 2rem;
+    background: var(--text);
+    color: white;
+    font-size: 13px;
+    padding: 10px 18px;
+    border-radius: 8px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    z-index: 50;
+  }
+
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 600px) {
+    header { padding: 0 1.25rem; }
+    main { padding: 1.5rem 1rem; }
+    .form-grid { grid-template-columns: 1fr; }
+    .link-meta .tag { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gate-box">
+    <i class="ti ti-lock"></i>
+    <p>Restricted area</p>
+    <small>Direct URL access only</small>
+  </div>
+</div>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">B</div>
+    <div class="logo-name">Broadway</div>
+    <div class="logo-divider"></div>
+    <div class="logo-sub">Admin</div>
+  </div>
+  <span class="admin-badge">Admin only</span>
+</header>
+
+<main>
+  <h1 class="page-title">Manage tools</h1>
+  <p class="page-sub">Add, edit, or remove links that appear on the team dashboard.</p>
+
+  <div class="add-form">
+    <div class="form-title" id="form-mode-label">Add new tool</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="f-name">Tool name</label>
+        <input type="text" id="f-name" placeholder="e.g. Stock Finder">
+      </div>
+      <div class="form-group">
+        <label for="f-category">Category</label>
+        <input type="text" id="f-category" placeholder="e.g. Inventory, Operations">
+      </div>
+      <div class="form-group full">
+        <label for="f-url">URL</label>
+        <input type="url" id="f-url" placeholder="https://...">
+      </div>
+      <div class="form-group full">
+        <label for="f-desc">Description</label>
+        <textarea id="f-desc" placeholder="What does this tool do?"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="f-icon">Icon (Tabler icon name)</label>
+        <input type="text" id="f-icon" placeholder="ti-package, ti-chart-bar ...">
+      </div>
+    </div>
+    <div class="form-actions" style="gap: 8px; display: flex;">
+      <button class="btn btn-ghost" id="cancel-btn" style="display:none" onclick="cancelEdit()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveLink()">
+        <i class="ti ti-plus" aria-hidden="true"></i>
+        <span id="save-label">Add tool</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="links-list" class="links-list"></div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const SECRET = 'broadway2024';
+  const gate = document.getElementById('gate');
+
+  function checkAccess() {
+    const hash = window.location.hash.replace('#', '');
+    if (hash === SECRET) {
+      gate.style.display = 'none';
+    } else {
+      gate.style.display = 'flex';
+    }
+  }
+
+  checkAccess();
+  window.addEventListener('hashchange', checkAccess);
+
+  let editingId = null;
+  let allLinks = [];
+
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  async function loadLinks() {
+    const res = await fetch('/api/links');
+    allLinks = await res.json();
+    renderList();
+  }
+
+  function renderList() {
+    const el = document.getElementById('links-list');
+    if (allLinks.length === 0) {
+      el.innerHTML = '<div class="empty">No tools yet. Add one above.</div>';
+      return;
+    }
+    el.innerHTML = allLinks.map(link => `
+      <div class="link-row">
+        <div class="link-icon"><i class="ti ${link.icon || 'ti-link'}" aria-hidden="true"></i></div>
+        <div class="link-info">
+          <div class="link-name">${link.name}</div>
+          <div class="link-url">${link.url}</div>
+          ${link.description ? `<div class="link-desc">${link.description}</div>` : ''}
+        </div>
+        <div class="link-meta">
+          <span class="tag">${link.category}</span>
+          <button class="icon-btn" onclick="startEdit('${link.id}')" title="Edit" aria-label="Edit ${link.name}">
+            <i class="ti ti-pencil" aria-hidden="true"></i>
+          </button>
+          <button class="icon-btn" onclick="deleteLink('${link.id}')" title="Delete" aria-label="Delete ${link.name}">
+            <i class="ti ti-trash" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function startEdit(id) {
+    const link = allLinks.find(l => l.id === id);
+    if (!link) return;
+    editingId = id;
+    document.getElementById('f-name').value = link.name;
+    document.getElementById('f-url').value = link.url;
+    document.getElementById('f-desc').value = link.description || '';
+    document.getElementById('f-category').value = link.category || '';
+    document.getElementById('f-icon').value = link.icon || '';
+    document.getElementById('form-mode-label').textContent = 'Edit tool';
+    document.getElementById('save-label').textContent = 'Save changes';
+    document.getElementById('cancel-btn').style.display = 'inline-flex';
+    document.getElementById('f-name').focus();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelEdit() {
+    editingId = null;
+    ['f-name','f-url','f-desc','f-category','f-icon'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('form-mode-label').textContent = 'Add new tool';
+    document.getElementById('save-label').textContent = 'Add tool';
+    document.getElementById('cancel-btn').style.display = 'none';
+  }
+
+  async function saveLink() {
+    const name = document.getElementById('f-name').value.trim();
+    const url = document.getElementById('f-url').value.trim();
+    if (!name || !url) { toast('Name and URL are required'); return; }
+
+    const body = {
+      name,
+      url,
+      description: document.getElementById('f-desc').value.trim(),
+      category: document.getElementById('f-category').value.trim() || 'General',
+      icon: document.getElementById('f-icon').value.trim() || 'ti-link'
+    };
+
+    if (editingId) {
+      await fetch(`/api/links/${editingId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      toast('Tool updated');
+      cancelEdit();
+    } else {
+      await fetch('/api/links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      toast('Tool added');
+      cancelEdit();
+    }
+    await loadLinks();
+  }
+
+  async function deleteLink(id) {
+    if (!confirm('Remove this tool from the dashboard?')) return;
+    await fetch(`/api/links/${id}`, { method: 'DELETE' });
+    toast('Tool removed');
+    await loadLinks();
+  }
+
+  loadLinks();
+</script>
+</body>
+</html>

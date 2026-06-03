@@ -1,0 +1,26 @@
+[
+  {
+    "id": "1",
+    "name": "Promo Board",
+    "url": "https://promo-hub.onrender.com/",
+    "description": "Browse and manage promotional content across all stores",
+    "category": "Operations",
+    "icon": "ti-speakerphone"
+  },
+  {
+    "id": "2",
+    "name": "Style ID Mapper",
+    "url": "https://style-grouper-2wfvw7ptdi4scftx6wr3rg.streamlit.app/",
+    "description": "Map and group style IDs across product categories",
+    "category": "Inventory",
+    "icon": "ti-tags"
+  },
+  {
+    "id": "3",
+    "name": "Stock Finder",
+    "url": "https://stock-finder-0fm2.onrender.com/",
+    "description": "Search live stock levels across Hyderabad, Delhi and Pune",
+    "category": "Inventory",
+    "icon": "ti-package"
+  }
+]
