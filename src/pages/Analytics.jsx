@@ -90,7 +90,7 @@ export default function Analytics() {
         if (data.length < 1000) break
         from += 1000
       }
-      const { data: cur } = await supabase
+      const { data: cur, error: curErr } = await supabase
         .from('promo_requests')
         .select('brand_names,category,date_ranges,promo_details,promotion_name,status,assortment_type,sku_file_link,store')
         .limit(5000)
@@ -99,6 +99,8 @@ export default function Analytics() {
         .from('top_brands')
         .select('brand_name')
         .order('brand_name')
+      console.log('historical count:', hist.length)
+      console.log('current count:', cur?.length, 'error:', curErr)
       setHistorical(hist)
       setCurrent(cur || [])
       setTopBrands((tb || []).map(r => r.brand_name.toLowerCase().trim()))
