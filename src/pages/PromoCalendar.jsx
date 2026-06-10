@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { StatusBadge, CurrentStatusDot, exportCSV, fmtDate, todayISO } from '../lib/constants.jsx'
-import { Download, RefreshCw, CalendarCheck, CalendarX, Loader2, ExternalLink, Store } from 'lucide-react'
+import { Download, RefreshCw, CalendarCheck, CalendarX, Loader2, ExternalLink, Store, Tag } from 'lucide-react'
 
 const STORES = ['All', 'VK, Delhi', 'BH, Hyderabad', 'Pune', 'Mumbai']
 
@@ -27,7 +27,15 @@ export default function TodayPromos() {
   const today = todayISO()
   const tomorrow = addDays(today, 1)
 
-  useEffect(() => { load() }, [])
+  const [campaigns, setCampaigns] = useState([])
+  const [campFilter, setCampFilter] = useState('All')
+
+  useEffect(() => {
+    load()
+    // Fetch all campaigns for filter options
+    supabase.from('sale_campaigns').select('*').order('start_date', { ascending: false })
+      .then(({ data }) => setCampaigns(data || []))
+  }, [])
 
   const load = async () => {
     setLoading(true)
@@ -52,7 +60,12 @@ export default function TodayPromos() {
     return (row.store || '').includes(store)
   }
 
-  const filtered = rows.filter(matchStore)
+  const matchCampaign = (row) => {
+    if (campFilter === 'All') return true
+    return row.campaign_id === campFilter
+  }
+
+  const filtered = rows.filter(r => matchStore(r) && matchCampaign(r))
 
   const startingToday    = filtered.filter(r => matchDate(r, 'from', today))
   const endingToday      = filtered.filter(r => matchDate(r, 'till', today))
@@ -123,6 +136,31 @@ export default function TodayPromos() {
         </div>
       </div>
 
+      {/* Campaign filter */}
+      {campaigns.length > 0 && (
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-1.5 text-xs font-mono text-muted uppercase tracking-widest">
+            <Tag size={12} /> Campaign
+          </div>
+          <div className="flex gap-1.5 flex-wrap">
+            <button onClick={() => setCampFilter('All')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-body border transition-colors ${
+                campFilter === 'All' ? 'bg-accent text-white border-accent' : 'bg-white text-muted border-border hover:text-ink'
+              }`}>
+              All
+            </button>
+            {campaigns.map(c => (
+              <button key={c.id} onClick={() => setCampFilter(c.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-body border transition-colors ${
+                  campFilter === c.id ? 'bg-accent text-white border-accent' : 'bg-white text-muted border-border hover:text-ink'
+                }`}>
+                {c.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center items-center h-48 gap-2 text-muted">
           <Loader2 size={18} className="animate-spin" />
@@ -138,7 +176,7 @@ export default function TodayPromos() {
             </p>
             <div className="grid grid-cols-1 gap-4">
               <PromoGroup
-                title="Starting Today"
+campaigns={campaigns}                 title="Starting Today"
                 icon={<CalendarCheck size={15} className="text-success" />}
                 color="text-success"
                 bg="bg-emerald-50"
@@ -151,7 +189,7 @@ export default function TodayPromos() {
                 currentUserEmail={user?.email}
               />
               <PromoGroup
-                title="Ending Today"
+campaigns={campaigns}                 title="Ending Today"
                 icon={<CalendarX size={15} className="text-danger" />}
                 color="text-danger"
                 bg="bg-red-50"
@@ -173,7 +211,7 @@ export default function TodayPromos() {
             </p>
             <div className="grid grid-cols-1 gap-4">
               <PromoGroup
-                title="Starting Tomorrow"
+campaigns={campaigns}                 title="Starting Tomorrow"
                 icon={<CalendarCheck size={15} className="text-info" />}
                 color="text-info"
                 bg="bg-blue-50"
@@ -186,7 +224,7 @@ export default function TodayPromos() {
                 currentUserEmail={user?.email}
               />
               <PromoGroup
-                title="Ending Tomorrow"
+campaigns={campaigns}                 title="Ending Tomorrow"
                 icon={<CalendarX size={15} className="text-warning" />}
                 color="text-warning"
                 bg="bg-amber-50"
@@ -207,7 +245,7 @@ export default function TodayPromos() {
   )
 }
 
-function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, onExport, onPick, currentUserEmail }) {
+function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, onExport, onPick, currentUserEmail, campaigns = [] }) {
   return (
     <div className="bg-white border border-border rounded-xl overflow-hidden">
       {/* Group header */}
@@ -250,7 +288,7 @@ function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, on
   )
 }
 
-function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail }) {
+function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, campaigns = [] }) {
   const isPicked = !!r.picked_by
   const isNewPromo = isNew(r)
   const pickedByMe = r.picked_by === currentUserEmail
@@ -288,6 +326,14 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail }
           )}
           <StatusBadge status={r.status} />
           <CurrentStatusDot status={r.current_status} />
+          {r.campaign_id && (() => {
+            const camp = campaigns.find(c => c.id === r.campaign_id)
+            return camp ? (
+              <span className="text-[10px] font-mono bg-orange-100 text-accent px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                <Tag size={9} /> {camp.name}
+              </span>
+            ) : null
+          })()}
         </div>
 
         {/* Pick button — shows ✓ Picked or just ○ */}

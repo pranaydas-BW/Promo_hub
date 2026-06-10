@@ -54,6 +54,7 @@ const BLANK_FORM = {
   remark: '',
   status: 'Pending',
   current_status: 'Not Live',
+  campaign_id: '',
 }
 
 // ─── Sample downloads ─────────────────────────────────────────────────────────
@@ -398,6 +399,18 @@ export default function NewRequest() {
       setPocError('Must be a valid @broadwaylive.in email')
     else setPocError('')
   }
+
+  // ── Sale campaigns ──────────────────────────────────────────────────────────
+  const [activeCampaigns, setActiveCampaigns] = useState([])
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    supabase.from('sale_campaigns')
+      .select('*')
+      .lte('start_date', today)
+      .gte('end_date', today)
+      .order('start_date')
+      .then(({ data }) => setActiveCampaigns(data || []))
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -1008,6 +1021,17 @@ export default function NewRequest() {
                 onClear={() => { set('reversal_rsp_file_name', ''); set('reversal_rsp_file_data', '') }}
               />
             </div>
+          )}
+
+          {activeCampaigns.length > 0 && (
+            <Field label="Sale Campaign" hint="Tag this promo to an active sale campaign">
+              <select className="input-field" value={form.campaign_id} onChange={e => set('campaign_id', e.target.value)}>
+                <option value="">— No campaign —</option>
+                {activeCampaigns.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </Field>
           )}
 
           <Field label="Remark">
