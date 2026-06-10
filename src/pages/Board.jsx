@@ -92,6 +92,8 @@ export default function Board() {
   const groupedRows = groupByStartDate(activeRows)
   const groupedPast = groupByStartDate(pastRows)
 
+  const pastSectionRef = useRef(null)
+
   const counts = STATUS_OPTIONS.reduce((a, s) => ({ ...a, [s]: rows.filter(r => r.status === s).length }), {})
 
   return (
@@ -161,6 +163,17 @@ export default function Board() {
           </button>
         ))}
       </div>
+
+      {/* Scroll to Past shortcut */}
+      {groupedPast.length > 0 && (
+        <div className="flex mb-3">
+          <button
+            onClick={() => pastSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono border border-border bg-white text-muted hover:text-ink hover:border-ink transition-colors">
+            ↓ Past &amp; Closed ({pastRows.length})
+          </button>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-2 mb-5">
@@ -667,7 +680,7 @@ function EditPanel({ row: r, onPatch, isAdmin, userEmail }) {
           )}
           {/* Past Promos section */}
           {groupedPast.length > 0 && (
-            <div className="mt-8">
+            <div className="mt-8" ref={pastSectionRef}>
               <div className="flex items-center gap-3 mb-4">
                 <div className="flex items-center gap-2 bg-gray-300 text-gray-600 px-3 py-1 rounded-full">
                   <span className="text-[11px] font-mono font-bold tracking-wider">Past Promos</span>
