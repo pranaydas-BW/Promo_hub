@@ -70,6 +70,8 @@ export default function Analytics() {
   const [catFilter, setCatFilter] = useState('All Categories')
   const [monthFilter, setMonthFilter] = useState(6)
   const [storeFilter, setStoreFilter] = useState('All')
+  const [campaigns, setCampaigns] = useState([])
+  const [campFilter, setCampFilter] = useState('All')
   const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split('T')[0])
   // #2 — top brands list from Supabase
   const [topBrands, setTopBrands] = useState([])
@@ -90,23 +92,24 @@ export default function Analytics() {
         if (data.length < 1000) break
         from += 1000
       }
-      const { data: cur, error: curErr } = await supabase
+      const { data: cur } = await supabase
         .from('promo_requests')
-        .select('brand_names,category,date_ranges,promo_details,promotion_name,status,assortment_type,sku_file_link,store')
+        .select('brand_names,category,date_ranges,promo_details,promotion_name,status,assortment_type,sku_file_link,store,campaign_id')
         .limit(5000)
       // #2 — fetch top brands from Supabase
       const { data: tb } = await supabase
         .from('top_brands')
         .select('brand_name')
         .order('brand_name')
-      console.log('historical count:', hist.length)
-      console.log('current count:', cur?.length, 'error:', curErr)
       setHistorical(hist)
       setCurrent(cur || [])
       setTopBrands((tb || []).map(r => r.brand_name.toLowerCase().trim()))
       setLoading(false)
     }
     fetchAll()
+    // Fetch campaigns for filter
+    supabase.from('sale_campaigns').select('*').order('start_date', { ascending: false })
+      .then(({ data }) => setCampaigns(data || []))
   }, [])
 
   const allPromos = [
@@ -134,6 +137,7 @@ export default function Analytics() {
         status: r.status || '',
         assortment: r.assortment_type || '',
         skuLink: r.sku_file_link || '',
+        campaign_id: r.campaign_id || '',
         source: 'current',
       }))
     }),
@@ -145,9 +149,13 @@ export default function Analytics() {
     ? allPromos
     : allPromos.filter(r => r.store && r.store.includes(storeFilter))
 
-  const catFiltered = catFilter === 'All Categories'
+  const campFiltered = campFilter === 'All'
     ? storeFiltered
-    : storeFiltered.filter(r => r.category === catFilter)
+    : storeFiltered.filter(r => r.campaign_id === campFilter)
+
+  const catFiltered = catFilter === 'All Categories'
+    ? campFiltered
+    : campFiltered.filter(r => r.category === catFilter)
 
   // #2 — helper: is this brand a top brand?
   const isTopBrand = (brand) =>
@@ -352,6 +360,16 @@ export default function Analytics() {
         >
           {STORES.map(s => <option key={s}>{s}</option>)}
         </select>
+
+        {campaigns.length > 0 && (
+          <select
+            className="bg-white border border-border rounded-lg px-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-accent/20"
+            value={campFilter} onChange={e => setCampFilter(e.target.value)}
+          >
+            <option value="All">All Campaigns</option>
+            {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
 
         {/* #2 — Top Brands toggle (only on Critical / Ending Soon) */}
         {showTopBrandsToggle && (
