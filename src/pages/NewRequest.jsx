@@ -54,7 +54,7 @@ const BLANK_FORM = {
   remark: '',
   status: 'Pending',
   current_status: 'Not Live',
-  campaign_id: '',
+  campaign_id: null,
 }
 
 // ─── Sample downloads ─────────────────────────────────────────────────────────
@@ -1025,7 +1025,7 @@ export default function NewRequest() {
 
           {activeCampaigns.length > 0 && (
             <Field label="Sale Campaign" hint="Tag this promo to an active sale campaign">
-              <select className="input-field" value={form.campaign_id} onChange={e => set('campaign_id', e.target.value)}>
+              <select className="input-field" value={form.campaign_id} onChange={e => set('campaign_id', e.target.value || null)}>
                 <option value="">— No campaign —</option>
                 {activeCampaigns.map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
