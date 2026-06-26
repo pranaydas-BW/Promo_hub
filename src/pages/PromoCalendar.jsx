@@ -383,7 +383,6 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
         {r.offer_type && <span className="font-medium text-ink">{r.offer_type}</span>}
         {r.funded_by && <span>Funded: <b className="text-ink">{r.funded_by}</b></span>}
         {r.assortment_type && <span>{r.assortment_type}</span>}
-        {r.offline_online && <span>{r.offline_online}</span>}
         {r.ginesys_promo_id && <span className="font-mono">Ginesys: {r.ginesys_promo_id}</span>}
         {r.shopify_discount_id && <span className="font-mono">Shopify: {r.shopify_discount_id}</span>}
         {r.approval_email && (

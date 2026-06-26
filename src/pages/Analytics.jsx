@@ -72,6 +72,7 @@ export default function Analytics() {
   const [storeFilter, setStoreFilter] = useState('All')
   const [campaigns, setCampaigns] = useState([])
   const [campFilter, setCampFilter] = useState('All')
+  const [onlineFilter, setOnlineFilter] = useState('All')
   const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split('T')[0])
   // #2 — top brands list from Supabase
   const [topBrands, setTopBrands] = useState([])
@@ -153,9 +154,15 @@ export default function Analytics() {
     ? storeFiltered
     : storeFiltered.filter(r => r.campaign_id === campFilter)
 
-  const catFiltered = catFilter === 'All Categories'
+  const onlineFiltered = onlineFilter === 'All'
     ? campFiltered
-    : campFiltered.filter(r => r.category === catFilter)
+    : onlineFilter === 'Online'
+      ? campFiltered.filter(r => (r.store || '').includes('Online'))
+      : campFiltered.filter(r => !(r.store || '').includes('Online'))
+
+  const catFiltered = catFilter === 'All Categories'
+    ? onlineFiltered
+    : onlineFiltered.filter(r => r.category === catFilter)
 
   // #2 — helper: is this brand a top brand?
   const isTopBrand = (brand) =>
@@ -359,6 +366,15 @@ export default function Analytics() {
           value={storeFilter} onChange={e => setStoreFilter(e.target.value)}
         >
           {STORES.map(s => <option key={s}>{s}</option>)}
+        </select>
+
+        <select
+          className="bg-white border border-border rounded-lg px-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-accent/20"
+          value={onlineFilter} onChange={e => setOnlineFilter(e.target.value)}
+        >
+          <option value="All">All Channels</option>
+          <option value="Online">Online</option>
+          <option value="Offline">Offline</option>
         </select>
 
         {campaigns.length > 0 && (

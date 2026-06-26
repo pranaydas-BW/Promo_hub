@@ -59,6 +59,7 @@ export default function Board() {
   const [updatingId, setUpdatingId] = useState(null)
   const [fStore, setFStore] = useState('All')
   const [fCampaign, setFCampaign] = useState('All')
+  const [fOnline, setFOnline] = useState('All')
   const [fDateFrom, setFDateFrom] = useState('')
   const [fDateTo, setFDateTo] = useState('')
   const [campaigns, setCampaigns] = useState([])
@@ -97,6 +98,7 @@ export default function Board() {
       (fCurrent === 'All' || r.current_status === fCurrent) &&
       (fStore === 'All' || (r.store || '').includes(fStore)) &&
       (fCampaign === 'All' || r.campaign_id === fCampaign) &&
+      (fOnline === 'All' || (fOnline === 'Online' ? (r.store || '').includes('Online') : !(r.store || '').includes('Online'))) &&
       (() => {
         if (!fDateFrom && !fDateTo) return true
         const ranges = Array.isArray(r.date_ranges) ? r.date_ranges : []
@@ -146,7 +148,6 @@ export default function Board() {
                 promotion_name: r.promotion_name || '',
                 promo_details: r.promo_details || '',
                 assortment_type: r.assortment_type || '',
-                offline_online: r.offline_online || '',
                 broadway_discount_pct: r.broadway_discount_pct || r.broadway_discount_both || '',
                 brand_discount_pct: r.brand_discount_pct || r.brand_discount_both || '',
                 valid_from: Array.isArray(r.date_ranges) && r.date_ranges[0] ? r.date_ranges[0].from : '',
@@ -236,7 +237,13 @@ export default function Board() {
         <select className="bg-white border border-border rounded-lg px-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-accent/20"
           value={fStore} onChange={e => setFStore(e.target.value)}>
           <option value="All">All Stores</option>
-          {['VK, Delhi', 'BH, Hyderabad', 'Pune', 'Mumbai'].map(s => <option key={s}>{s}</option>)}
+          {['VK, Delhi', 'BH, Hyderabad', 'Pune', 'Mumbai', 'Online'].map(s => <option key={s}>{s}</option>)}
+        </select>
+        <select className="bg-white border border-border rounded-lg px-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-accent/20"
+          value={fOnline} onChange={e => setFOnline(e.target.value)}>
+          <option value="All">All Channels</option>
+          <option value="Online">Online</option>
+          <option value="Offline">Offline</option>
         </select>
         {campaigns.length > 0 && (
           <select className="bg-white border border-border rounded-lg px-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-accent/20"
@@ -245,8 +252,8 @@ export default function Board() {
             {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         )}
-        {(fDateFrom || fDateTo || fStore !== 'All' || fCampaign !== 'All') && (
-          <button onClick={() => { setFDateFrom(''); setFDateTo(''); setFStore('All'); setFCampaign('All') }}
+        {(fDateFrom || fDateTo || fStore !== 'All' || fCampaign !== 'All' || fOnline !== 'All') && (
+          <button onClick={() => { setFDateFrom(''); setFDateTo(''); setFStore('All'); setFCampaign('All'); setFOnline('All') }}
             className="px-3 py-2 text-xs font-mono text-muted hover:text-danger border border-border bg-white rounded-lg transition-colors">
             ✕ Clear
           </button>
@@ -446,7 +453,6 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
               ['Live Status', effectiveCurrentStatus],
               ['Funded By', r.funded_by],
               ['Assortment Type', r.assortment_type],
-              ['Offline / Online', r.offline_online],
               ['Store', r.store],
               ['Broadway Discount %', r.broadway_discount_pct || r.broadway_discount_both],
               ['Brand Discount %', r.brand_discount_pct || r.brand_discount_both],

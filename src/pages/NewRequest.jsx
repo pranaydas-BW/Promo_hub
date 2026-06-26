@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import {
-  FUNDED_BY_OPTIONS, ASSORTMENT_TYPES, OFFLINE_ONLINE_OPTIONS, todayISO,
+  FUNDED_BY_OPTIONS, ASSORTMENT_TYPES, todayISO,
 } from '../lib/constants.jsx'
 import { Section, Field, StoreToggle } from '../components/FormParts'
 import {
@@ -38,7 +38,6 @@ const BLANK_FORM = {
   promotion_name: '',
   assortment_type: '',
   discount_on: '',
-  offline_online: '',
   date_ranges: [{ ...BLANK_RANGE }],
   approval_email: '',
   approval_file_name: '',
@@ -815,13 +814,7 @@ export default function NewRequest() {
         </Section>
 
         <Section title={`Offer Details — ${offerType}`}>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Offline / Online" required>
-              <select className="input-field" required value={form.offline_online} onChange={e => set('offline_online', e.target.value)}>
-                <option value="">Select…</option>
-                {OFFLINE_ONLINE_OPTIONS.map(o => <option key={o}>{o}</option>)}
-              </select>
-            </Field>
+          <div className="grid grid-cols-1 gap-4">
             <Field label="Promotion Name" required>
               <input className="input-field" placeholder="e.g. November Offer"
                 value={form.promotion_name} onChange={e => set('promotion_name', e.target.value)} />
