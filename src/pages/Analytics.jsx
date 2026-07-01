@@ -784,7 +784,7 @@ export default function Analytics() {
           )}
 
           {tab === 'onlineoffline' && (
-            <OnlineOfflineTab filtered={filtered} />
+            <OnlineOfflineTab allPromos={allPromos} />
           )}
 
         </>
@@ -793,14 +793,14 @@ export default function Analytics() {
   )
 }
 
-function OnlineOfflineTab({ filtered }) {
-  const today = new Date().toISOString().split('T')[0]
+function OnlineOfflineTab({ allPromos }) {
+  const today = todayISO()
   const [ooFilter, setOoFilter] = useState('All')
   const [dateFrom, setDateFrom] = useState(today)
   const [dateTo, setDateTo] = useState(today)
 
   // Filter to promos active within the selected date range
-  const dateFiltered = filtered.filter(r => {
+  const dateFiltered = allPromos.filter(r => {
     const ranges = Array.isArray(r.date_ranges) ? r.date_ranges : []
     return ranges.some(dr => (dr.from || '') <= dateTo && (dr.till || '') >= dateFrom)
   })
