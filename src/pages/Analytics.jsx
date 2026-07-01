@@ -134,6 +134,7 @@ export default function Analytics() {
         from: dr.from,
         till: dr.till,
         details: r.promo_details || r.promotion_name || '',
+        offerType: r.offer_type || '',
         store: r.store || '',
         status: r.status || '',
         assortment: r.assortment_type || '',
