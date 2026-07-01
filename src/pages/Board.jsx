@@ -84,6 +84,38 @@ export default function Board() {
     setUpdatingId(null)
   }
 
+  const cloneAsOnline = async (r) => {
+    const { data: existing } = await supabase
+      .from('promo_requests')
+      .select('promo_request_id')
+      .order('created_at', { ascending: false })
+      .limit(1)
+    const lastId = existing?.[0]?.promo_request_id || '#BWP0000'
+    const num = parseInt(lastId.replace('#BWP', ''), 10) + 1
+    const newId = `#BWP${String(num).padStart(4, '0')}`
+    const { data: newRow } = await supabase.from('promo_requests').insert({
+      promo_request_id: newId,
+      brand_names: r.brand_names,
+      category: r.category,
+      store: 'Online',
+      poc_name: r.poc_name,
+      poc_email: r.poc_email,
+      funded_by: r.funded_by,
+      offer_type: r.offer_type,
+      promotion_name: r.promotion_name,
+      promo_details: r.promo_details,
+      assortment_type: r.assortment_type,
+      date_ranges: r.date_ranges,
+      campaign_id: r.campaign_id,
+      broadway_pct_split: r.broadway_pct_split,
+      brand_pct_split: r.brand_pct_split,
+      funded_by: r.funded_by,
+      status: 'Pending',
+      current_status: 'Not Live',
+    }).select().single()
+    if (newRow) setRows(prev => [newRow, ...prev])
+  }
+
   const filtered = rows.filter(r => {
     const q = search.toLowerCase()
     const matchQ = !q ||
@@ -299,7 +331,7 @@ export default function Board() {
   )
 }
 
-function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allRows, userEmail }) {
+function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allRows, userEmail, onClone }) {
   const ranges = Array.isArray(r.date_ranges) ? r.date_ranges : []
   const first = ranges[0] || {}
 
@@ -355,6 +387,12 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
             {isClosure && (
               <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded-full border shrink-0 bg-red-100 text-red-700 border-red-300">
                 🔴 CLOSURE
+              </span>
+            )}
+            {/* Online tag */}
+            {(r.store || '') === 'Online' && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded-full border shrink-0 bg-blue-100 text-blue-700 border-blue-300">
+                🌐 ONLINE
               </span>
             )}
             <p className="font-display font-semibold text-sm text-ink truncate">{r.brand_names}</p>
@@ -564,6 +602,10 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
           {isAdmin && (
             <StatusPanel row={r} onPatch={onPatch} updating={updating} allRows={allRows} />
           )}
+          {/* Clone as Online — only for offline promos */}
+          {isAdmin && (r.store || '') !== 'Online' && (
+            <CloneOnlineButton row={r} onClone={onClone} />
+          )}
         </div>
       )}
     </div>
@@ -766,7 +808,8 @@ function EditPanel({ row: r, onPatch, isAdmin, userEmail }) {
                           onPatch={patch} updating={updatingId === r.id}
                           isAdmin={isAdmin}
                           allRows={rows}
-                          userEmail={user?.email} />
+                          userEmail={user?.email}
+                          onClone={cloneAsOnline} />
                       ))}
                     </div>
                   </div>
@@ -774,6 +817,61 @@ function EditPanel({ row: r, onPatch, isAdmin, userEmail }) {
               </div>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CloneOnlineButton({ row: r, onClone }) {
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [cloning, setCloning] = useState(false)
+  const [done, setDone] = useState(false)
+
+  const handleClone = async () => {
+    setCloning(true)
+    await onClone(r)
+    setCloning(false)
+    setDone(true)
+    setShowConfirm(false)
+  }
+
+  if (done) return (
+    <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm font-body text-blue-700">
+      ✓ Online promo created successfully
+    </div>
+  )
+
+  return (
+    <div>
+      {!showConfirm ? (
+        <button
+          onClick={() => setShowConfirm(true)}
+          className="flex items-center gap-1.5 text-xs font-body text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
+          🌐 Clone as Online Promo
+        </button>
+      ) : (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 space-y-3">
+          <p className="text-sm font-body text-blue-800 font-medium">
+            Create an online version of this promo?
+          </p>
+          <p className="text-xs font-body text-blue-600">
+            A new promo will be created with identical details but <span className="font-semibold">Store = Online</span>.
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleClone}
+              disabled={cloning}
+              className="flex items-center gap-1.5 bg-blue-600 text-white text-xs font-body px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              {cloning ? <Loader2 size={11} className="animate-spin" /> : null}
+              {cloning ? 'Creating…' : 'Yes, Create Online Promo'}
+            </button>
+            <button
+              onClick={() => setShowConfirm(false)}
+              className="text-xs font-body text-muted hover:text-ink transition-colors">
+              Cancel
+            </button>
+          </div>
         </div>
       )}
     </div>
