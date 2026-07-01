@@ -849,6 +849,17 @@ function OnlineOfflineTab({ allPromos }) {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => exportCSV(brandList.map(b => ({
+            brand: b.brand,
+            category: b.category,
+            offer_type: b.offerType || '',
+            offer_name: b.offerName || '',
+            sku_level: b.skuLevel,
+            online: b.online ? 'Yes' : 'No',
+          })), `online-offline-${dateFrom}-to-${dateTo}.csv`)}
+            className="flex items-center gap-1.5 text-xs font-body text-ink border border-border bg-white px-3 py-1.5 rounded-lg hover:bg-paper">
+            <Download size={12} /> Export
+          </button>
           <div className="flex items-center gap-1.5 bg-white border border-border rounded-lg px-3 py-2 text-sm font-body">
             <span className="text-[10px] font-mono text-muted uppercase">From</span>
             <input type="date" className="text-sm font-body focus:outline-none bg-transparent"
