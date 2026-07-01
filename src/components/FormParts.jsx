@@ -20,23 +20,55 @@ export function Field({ label, required, hint, children }) {
 }
 
 export function StoreToggle({ selected = [], onChange }) {
-  const STORES = ['VK, Delhi', 'BH, Hyderabad', 'Pune', 'Mumbai', 'Online']
-  const toggle = (s) => onChange(
-    selected.includes(s) ? selected.filter(x => x !== s) : [...selected, s]
-  )
+  const OFFLINE_STORES = ['VK, Delhi', 'BH, Hyderabad', 'Pune', 'Mumbai']
+
+  // Determine current channel from selected value
+  const isOnline = selected === 'Online' || (Array.isArray(selected) && selected.includes('Online') && selected.length === 1)
+  const isOffline = !isOnline
+  const channel = isOnline ? 'Online' : (Array.isArray(selected) && selected.length > 0 ? 'Offline' : '')
+
+  const offlineSelected = Array.isArray(selected) ? selected.filter(s => s !== 'Online') : []
+
+  const handleChannel = (ch) => {
+    if (ch === 'Online') onChange(['Online'])
+    else onChange([])
+  }
+
+  const toggle = (s) => {
+    const next = offlineSelected.includes(s)
+      ? offlineSelected.filter(x => x !== s)
+      : [...offlineSelected, s]
+    onChange(next)
+  }
+
   return (
-    <div className="flex flex-wrap gap-2 mt-1">
-      {STORES.map(s => (
-        <button key={s} type="button" onClick={() => toggle(s)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-body border transition-colors ${
-            selected.includes(s)
-              ? 'bg-ink text-white border-ink'
-              : 'bg-white text-muted border-border hover:border-ink hover:text-ink'
-          }`}
-        >
-          {s}
-        </button>
-      ))}
+    <div className="space-y-3 mt-1">
+      <div className="flex gap-2">
+        {['Offline', 'Online'].map(ch => (
+          <button key={ch} type="button" onClick={() => handleChannel(ch)}
+            className={`px-4 py-1.5 rounded-lg text-xs font-body border transition-colors ${
+              channel === ch
+                ? 'bg-ink text-white border-ink'
+                : 'bg-white text-muted border-border hover:border-ink hover:text-ink'
+            }`}>
+            {ch}
+          </button>
+        ))}
+      </div>
+      {channel === 'Offline' && (
+        <div className="flex flex-wrap gap-2">
+          {OFFLINE_STORES.map(s => (
+            <button key={s} type="button" onClick={() => toggle(s)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-body border transition-colors ${
+                offlineSelected.includes(s)
+                  ? 'bg-ink text-white border-ink'
+                  : 'bg-white text-muted border-border hover:border-ink hover:text-ink'
+              }`}>
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

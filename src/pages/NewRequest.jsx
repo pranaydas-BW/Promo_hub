@@ -420,7 +420,7 @@ export default function NewRequest() {
     const normalizedRanges = validRanges.map(r => ({ ...r, till: r.till || r.from }))
     if (!validRanges.length) { setError('Please fill in at least one complete date range.'); setLoading(false); return }
     if (!form.store || (Array.isArray(form.store) && form.store.length === 0)) {
-      setError('Please select at least one store.'); setLoading(false); return
+      setError('Please select a channel and at least one store.'); setLoading(false); return
     }
     if (!isMultiBrand && !isAllSkuMultiBrand && !form.brand_names) {
       setError('Please select a brand.'); setLoading(false); return
@@ -444,7 +444,8 @@ export default function NewRequest() {
       setError('Please upload the Reversal RSP file — required when reversal is selected.'); setLoading(false); return
     }
 
-    const storeStr = Array.isArray(form.store) ? form.store.join(', ') : form.store
+    const storeArr = Array.isArray(form.store) ? form.store : (form.store || '').split(',').map(s => s.trim()).filter(Boolean)
+    const storeStr = storeArr.includes('Online') ? 'Online' : storeArr.join(', ')
     const basePayload = {
       ...form,
       offer_type: offerType,
