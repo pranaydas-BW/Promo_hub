@@ -430,15 +430,11 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
         <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
           <StatusBadge status={r.status} />
           <CurrentStatusDot status={effectiveCurrentStatus} />
+          {isAdmin && (r.store || '') !== 'Online' && (
+            <InlineCloneButton row={r} onClone={onClone} />
+          )}
         </div>
-        {isAdmin && (r.store || '') !== 'Online' && (
-          <button
-            onClick={e => { e.stopPropagation(); onClone && onClone(r) }}
-            className="hidden sm:flex items-center gap-1 text-[10px] font-mono text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg transition-colors shrink-0"
-            title="Clone as Online Promo">
-            🌐 Online
-          </button>
-        )}
+
         <ChevronDown size={13} className={`text-muted shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
 
@@ -883,5 +879,50 @@ function CloneOnlineButton({ row: r, onClone }) {
         </div>
       )}
     </div>
+  )
+}
+
+function InlineCloneButton({ row: r, onClone }) {
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [cloning, setCloning] = useState(false)
+  const [done, setDone] = useState(false)
+
+  const handleClone = async (e) => {
+    e.stopPropagation()
+    setCloning(true)
+    await onClone(r)
+    setCloning(false)
+    setDone(true)
+    setTimeout(() => { setDone(false); setShowConfirm(false) }, 2000)
+  }
+
+  if (done) return (
+    <span className="text-[10px] font-mono text-blue-600 px-2 py-1">✓ Created</span>
+  )
+
+  if (showConfirm) return (
+    <span className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+      <span className="text-[10px] font-body text-blue-700">Create online promo?</span>
+      <button
+        onClick={handleClone}
+        disabled={cloning}
+        className="text-[10px] font-mono bg-blue-600 text-white px-2 py-0.5 rounded transition-colors hover:bg-blue-700 disabled:opacity-50">
+        {cloning ? '…' : 'Yes'}
+      </button>
+      <button
+        onClick={e => { e.stopPropagation(); setShowConfirm(false) }}
+        className="text-[10px] font-mono text-muted hover:text-ink">
+        No
+      </button>
+    </span>
+  )
+
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); setShowConfirm(true) }}
+      className="text-[10px] font-mono text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-full transition-colors"
+      title="Clone as Online Promo">
+      + Online
+    </button>
   )
 }
