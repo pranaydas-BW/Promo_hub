@@ -305,6 +305,11 @@ export default function Board() {
           <Filter size={26} className="mx-auto mb-2 opacity-30" />
           <p className="text-sm">No requests match your filters.</p>
         </div>
+      ) : activeRows.length === 0 && pastRows.length === 0 ? (
+        <div className="text-center py-20 text-muted">
+          <Filter size={26} className="mx-auto mb-2 opacity-30" />
+          <p className="text-sm">No requests match your filters.</p>
+        </div>
       ) : (
         // #5 — Date-grouped board view
         <div className="space-y-6">
