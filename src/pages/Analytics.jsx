@@ -804,19 +804,38 @@ function OnlineOfflineTab({ allPromos }) {
     return (r.from || '') <= dateTo && (r.till || '') >= dateFrom
   })
 
-  const onlinePromos = dateFiltered.filter(r => (r.store || '').includes('Online'))
-  const offlinePromos = dateFiltered.filter(r => !(r.store || '').includes('Online'))
-
+  // Build one row per brand — latest promo details, online=Yes if any promo is online
   const brandMap = {}
   dateFiltered.forEach(r => {
     if (!r.brand) return
-    if (!brandMap[r.brand]) brandMap[r.brand] = { brand: r.brand, category: r.category, online: 0, offline: 0 }
-    if ((r.store || '').includes('Online')) brandMap[r.brand].online++
-    else brandMap[r.brand].offline++
+    if (!brandMap[r.brand]) {
+      brandMap[r.brand] = {
+        brand: r.brand, category: r.category,
+        offerType: r.offerType || '',
+        offerName: r.details || '',
+        offerDesc: '',
+        skuLevel: r.skuLink ? 'Selected SKUs' : 'All SKUs',
+        online: false,
+        latestFrom: r.from || '',
+      }
+    }
+    // Update to latest promo
+    if ((r.from || '') >= brandMap[r.brand].latestFrom) {
+      brandMap[r.brand].latestFrom = r.from || ''
+      brandMap[r.brand].offerType = r.offerType || ''
+      brandMap[r.brand].offerName = r.details || ''
+      brandMap[r.brand].skuLevel = r.skuLink ? 'Selected SKUs' : 'All SKUs'
+    }
+    // Online = Yes if any promo in range is online
+    if ((r.store || '').includes('Online')) brandMap[r.brand].online = true
   })
+
   const brandList = Object.values(brandMap)
-    .filter(b => ooFilter === 'Offline' ? b.offline > 0 : true)
-    .sort((a, b) => (b.online + b.offline) - (a.online + a.offline))
+    .filter(b => ooFilter === 'Offline' ? !b.online : true)
+    .sort((a, b) => a.brand.localeCompare(b.brand))
+
+  const onlineCount = Object.values(brandMap).filter(b => b.online).length
+  const offlineCount = Object.values(brandMap).filter(b => !b.online).length
 
   return (
     <div>
@@ -826,7 +845,7 @@ function OnlineOfflineTab({ allPromos }) {
             🌐 Online vs Offline
           </h2>
           <p className="text-sm text-muted mt-1">
-            {onlinePromos.length} online · {offlinePromos.length} offline
+            {onlineCount} brands online · {offlineCount} brands offline · {brandList.length} shown
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -843,7 +862,7 @@ function OnlineOfflineTab({ allPromos }) {
           <select
             className="bg-white border border-border rounded-lg px-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-accent/20"
             value={ooFilter} onChange={e => setOoFilter(e.target.value)}>
-            <option value="All">All Offers</option>
+            <option value="All">All Brands</option>
             <option value="Offline">Offline Only</option>
           </select>
         </div>
@@ -855,30 +874,28 @@ function OnlineOfflineTab({ allPromos }) {
               <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">#</th>
               <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Brand</th>
               <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Category</th>
-              <th className="px-4 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted">Offline Offers</th>
-              <th className="px-4 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted">Online Offers</th>
-              <th className="px-4 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted">Total</th>
+              <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Offer Type</th>
+              <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Offer Name</th>
+              <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">SKU Level</th>
+              <th className="px-4 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted">Online</th>
             </tr>
           </thead>
           <tbody>
             {brandList.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-10 text-muted">No data for selected filters.</td></tr>
+              <tr><td colSpan={7} className="text-center py-10 text-muted">No data for selected filters.</td></tr>
             ) : brandList.map((b, i) => (
               <tr key={b.brand} className="border-b border-border last:border-0 hover:bg-paper/40">
                 <td className="px-4 py-3 text-muted font-mono text-xs">{i + 1}</td>
                 <td className="px-4 py-3 font-medium text-ink">{b.brand}</td>
                 <td className="px-4 py-3 text-muted text-xs">{b.category}</td>
+                <td className="px-4 py-3 text-xs text-muted">{b.offerType || '—'}</td>
+                <td className="px-4 py-3 text-xs text-ink">{b.offerName || '—'}</td>
+                <td className="px-4 py-3 text-xs text-muted">{b.skuLevel}</td>
                 <td className="px-4 py-3 text-center">
-                  {b.offline > 0
-                    ? <span className="bg-ink text-white text-xs font-mono px-2 py-0.5 rounded-full">{b.offline}</span>
-                    : <span className="text-border">—</span>}
+                  {b.online
+                    ? <span className="bg-accent text-white text-xs font-mono px-2 py-0.5 rounded-full">Yes</span>
+                    : <span className="text-border text-xs">No</span>}
                 </td>
-                <td className="px-4 py-3 text-center">
-                  {b.online > 0
-                    ? <span className="bg-accent text-white text-xs font-mono px-2 py-0.5 rounded-full">{b.online}</span>
-                    : <span className="text-border">—</span>}
-                </td>
-                <td className="px-4 py-3 text-center font-mono text-xs font-bold text-ink">{b.online + b.offline}</td>
               </tr>
             ))}
           </tbody>
