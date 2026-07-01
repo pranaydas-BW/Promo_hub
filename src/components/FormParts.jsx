@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 export function Section({ title, children }) {
   return (
     <div className="bg-white border border-border rounded-xl p-5 space-y-4">
@@ -22,14 +24,15 @@ export function Field({ label, required, hint, children }) {
 export function StoreToggle({ selected = [], onChange }) {
   const OFFLINE_STORES = ['VK, Delhi', 'BH, Hyderabad', 'Pune', 'Mumbai']
 
-  // Determine current channel from selected value
-  const isOnline = selected === 'Online' || (Array.isArray(selected) && selected.includes('Online') && selected.length === 1)
-  const isOffline = !isOnline
-  const channel = isOnline ? 'Online' : (Array.isArray(selected) && selected.length > 0 ? 'Offline' : '')
-
+  const isOnline = Array.isArray(selected) && selected.includes('Online')
   const offlineSelected = Array.isArray(selected) ? selected.filter(s => s !== 'Online') : []
 
+  // channel state: 'Online', 'Offline', or '' (nothing selected yet)
+  const derivedChannel = isOnline ? 'Online' : (offlineSelected.length > 0 ? 'Offline' : '')
+  const [channel, setChannel] = useState(derivedChannel)
+
   const handleChannel = (ch) => {
+    setChannel(ch)
     if (ch === 'Online') onChange(['Online'])
     else onChange([])
   }
