@@ -112,6 +112,7 @@ export default function Board() {
       funded_by: r.funded_by,
       status: 'Pending',
       current_status: 'Not Live',
+      cloned_from_id: r.promo_request_id,
     }).select().single()
     if (newRow) setRows(prev => [newRow, ...prev])
   }
@@ -395,6 +396,12 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
                 🌐 ONLINE
               </span>
             )}
+            {/* Cloned from tag */}
+            {r.cloned_from_id && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded-full border shrink-0 bg-blue-50 text-blue-600 border-blue-200">
+                Cloned from {r.cloned_from_id}
+              </span>
+            )}
             <p className="font-display font-semibold text-sm text-ink truncate">{r.brand_names}</p>
           </div>
           <p className="text-[11px] text-muted truncate">{r.category}</p>
@@ -606,10 +613,7 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
           {isAdmin && (
             <StatusPanel row={r} onPatch={onPatch} updating={updating} allRows={allRows} />
           )}
-          {/* Clone as Online — only for offline promos */}
-          {isAdmin && (r.store || '') !== 'Online' && (
-            <CloneOnlineButton row={r} onClone={onClone} />
-          )}
+
         </div>
       )}
     </div>
