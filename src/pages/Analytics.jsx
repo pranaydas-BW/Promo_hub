@@ -794,13 +794,22 @@ export default function Analytics() {
 }
 
 function OnlineOfflineTab({ filtered }) {
+  const today = new Date().toISOString().split('T')[0]
   const [ooFilter, setOoFilter] = useState('All')
+  const [dateFrom, setDateFrom] = useState(today)
+  const [dateTo, setDateTo] = useState(today)
 
-  const onlinePromos = filtered.filter(r => (r.store || '').includes('Online'))
-  const offlinePromos = filtered.filter(r => !(r.store || '').includes('Online'))
+  // Filter to promos active within the selected date range
+  const dateFiltered = filtered.filter(r => {
+    const ranges = Array.isArray(r.date_ranges) ? r.date_ranges : []
+    return ranges.some(dr => (dr.from || '') <= dateTo && (dr.till || '') >= dateFrom)
+  })
+
+  const onlinePromos = dateFiltered.filter(r => (r.store || '').includes('Online'))
+  const offlinePromos = dateFiltered.filter(r => !(r.store || '').includes('Online'))
 
   const brandMap = {}
-  filtered.forEach(r => {
+  dateFiltered.forEach(r => {
     if (!r.brand) return
     if (!brandMap[r.brand]) brandMap[r.brand] = { brand: r.brand, category: r.category, online: 0, offline: 0 }
     if ((r.store || '').includes('Online')) brandMap[r.brand].online++
@@ -821,12 +830,24 @@ function OnlineOfflineTab({ filtered }) {
             {onlinePromos.length} online · {offlinePromos.length} offline
           </p>
         </div>
-        <select
-          className="bg-white border border-border rounded-lg px-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-accent/20"
-          value={ooFilter} onChange={e => setOoFilter(e.target.value)}>
-          <option value="All">All Offers</option>
-          <option value="Offline">Offline Only</option>
-        </select>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 bg-white border border-border rounded-lg px-3 py-2 text-sm font-body">
+            <span className="text-[10px] font-mono text-muted uppercase">From</span>
+            <input type="date" className="text-sm font-body focus:outline-none bg-transparent"
+              value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+          </div>
+          <div className="flex items-center gap-1.5 bg-white border border-border rounded-lg px-3 py-2 text-sm font-body">
+            <span className="text-[10px] font-mono text-muted uppercase">To</span>
+            <input type="date" className="text-sm font-body focus:outline-none bg-transparent"
+              value={dateTo} onChange={e => setDateTo(e.target.value)} />
+          </div>
+          <select
+            className="bg-white border border-border rounded-lg px-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-accent/20"
+            value={ooFilter} onChange={e => setOoFilter(e.target.value)}>
+            <option value="All">All Offers</option>
+            <option value="Offline">Offline Only</option>
+          </select>
+        </div>
       </div>
       <div className="overflow-x-auto rounded-xl border border-border bg-white">
         <table className="min-w-full text-sm font-body">
