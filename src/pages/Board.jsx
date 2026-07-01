@@ -128,7 +128,6 @@ export default function Board() {
     return matchQ &&
       (fStatus === 'All' || r.status === fStatus) &&
       (fCategory === 'All' || r.category === fCategory) &&
-      (fCurrent === 'All' || r.current_status === fCurrent) &&
       (fStore === 'All' || (r.store || '').includes(fStore)) &&
       (fCampaign === 'All' || r.campaign_id === fCampaign) &&
       (fOnline === 'All' || (fOnline === 'Online' ? (r.store || '').includes('Online') : !(r.store || '').includes('Online'))) &&
@@ -147,7 +146,7 @@ export default function Board() {
   })
 
   // #5 — split into active (top) and past (bottom)
-  const activeRows = filtered.filter(r => isActivePromo(r))
+  const activeRows = filtered.filter(r => isActivePromo(r) && (fCurrent === 'All' || r.current_status === fCurrent))
   const pastRows = filtered.filter(r => !isActivePromo(r))
   const groupedRows = groupByStartDate(activeRows)
   const groupedPast = groupByStartDate(pastRows)
