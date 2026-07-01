@@ -431,6 +431,14 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
           <StatusBadge status={r.status} />
           <CurrentStatusDot status={effectiveCurrentStatus} />
         </div>
+        {isAdmin && (r.store || '') !== 'Online' && (
+          <button
+            onClick={e => { e.stopPropagation(); onClone && onClone(r) }}
+            className="hidden sm:flex items-center gap-1 text-[10px] font-mono text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg transition-colors shrink-0"
+            title="Clone as Online Promo">
+            🌐 Online
+          </button>
+        )}
         <ChevronDown size={13} className={`text-muted shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
 
