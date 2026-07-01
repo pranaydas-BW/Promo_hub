@@ -116,7 +116,7 @@ export default function Board() {
   // #5 — split into active (top) and past (bottom)
   const activeRows = filtered.filter(r => isActivePromo(r))
   const pastRows = filtered.filter(r => !isActivePromo(r))
-  const groupedRows = groupByStartDate(activeRows)
+  const groupedRows = groupByStartDate(filtered)
   const groupedPast = groupByStartDate(pastRows)
 
   const pastSectionRef = useRef(null)
@@ -190,16 +190,7 @@ export default function Board() {
         ))}
       </div>
 
-      {/* Scroll to Past shortcut */}
-      {groupedPast.length > 0 && (
-        <div className="flex mb-3">
-          <button
-            onClick={() => pastSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono border border-border bg-white text-muted hover:text-ink hover:border-ink transition-colors">
-            ↓ Past &amp; Closed ({pastRows.length})
-          </button>
-        </div>
-      )}
+
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-2 mb-5">
