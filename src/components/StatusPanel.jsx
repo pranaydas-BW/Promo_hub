@@ -10,6 +10,7 @@ export function StatusPanel({ row: r, onPatch, updating, allRows }) {
     current_status: r.current_status || '',
     shopify_promo_status: r.shopify_promo_status || '',
     ginesys_promo_id: r.ginesys_promo_id || '',
+    app_promo_id: r.app_promo_id || '',
     shopify_discount_id: r.shopify_discount_id || '',
     remark: r.remark || '',
   })
@@ -21,6 +22,7 @@ export function StatusPanel({ row: r, onPatch, updating, allRows }) {
     draft.current_status !== (r.current_status || '') ||
     draft.shopify_promo_status !== (r.shopify_promo_status || '') ||
     draft.ginesys_promo_id !== (r.ginesys_promo_id || '') ||
+    draft.app_promo_id !== (r.app_promo_id || '') ||
     draft.shopify_discount_id !== (r.shopify_discount_id || '') ||
     draft.remark !== (r.remark || '')
 
@@ -62,6 +64,7 @@ export function StatusPanel({ row: r, onPatch, updating, allRows }) {
       current_status: r.current_status || '',
       shopify_promo_status: r.shopify_promo_status || '',
       ginesys_promo_id: r.ginesys_promo_id || '',
+      app_promo_id: r.app_promo_id || '',
       shopify_discount_id: r.shopify_discount_id || '',
       remark: r.remark || '',
     })
@@ -173,6 +176,20 @@ export function StatusPanel({ row: r, onPatch, updating, allRows }) {
         {r.updated_at && r.updated_at !== r.created_at && (
           <span>Updated: {new Date(r.updated_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
         )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="text-[10px] font-mono uppercase text-muted mb-1 block">App Promo ID</label>
+          <input
+            className={`w-full bg-white border rounded-lg px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-accent/20 ${
+              draft.app_promo_id !== (r.app_promo_id || '') ? 'border-accent' : 'border-border'
+            }`}
+            placeholder="e.g. APP-001"
+            value={draft.app_promo_id}
+            onChange={e => setDraft(d => ({ ...d, app_promo_id: e.target.value }))}
+          />
+        </div>
       </div>
 
       <div className="flex items-center gap-2 pt-1">
