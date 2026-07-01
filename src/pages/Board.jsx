@@ -88,12 +88,12 @@ export default function Board() {
     const { data: existing } = await supabase
       .from('promo_requests')
       .select('promo_request_id')
-      .order('created_at', { ascending: false })
+      .order('promo_request_id', { ascending: false })
       .limit(1)
     const lastId = existing?.[0]?.promo_request_id || '#BWP0000'
     const num = parseInt(lastId.replace('#BWP', ''), 10) + 1
     const newId = `#BWP${String(num).padStart(4, '0')}`
-    const { data: newRow } = await supabase.from('promo_requests').insert({
+    const { data: newRow, error } = await supabase.from('promo_requests').insert({
       promo_request_id: newId,
       brand_names: r.brand_names,
       category: r.category,
@@ -109,11 +109,11 @@ export default function Board() {
       campaign_id: r.campaign_id,
       broadway_pct_split: r.broadway_pct_split,
       brand_pct_split: r.brand_pct_split,
-      funded_by: r.funded_by,
       status: 'Pending',
       current_status: 'Not Live',
       cloned_from_id: r.promo_request_id,
     }).select().single()
+    if (error) { console.error('Clone failed:', error); alert('Failed to create online promo: ' + error.message); return }
     if (newRow) setRows(prev => [newRow, ...prev])
   }
 
@@ -898,46 +898,32 @@ function CloneOnlineButton({ row: r, onClone }) {
 }
 
 function InlineCloneButton({ row: r, onClone }) {
-  const [showConfirm, setShowConfirm] = useState(false)
   const [cloning, setCloning] = useState(false)
   const [done, setDone] = useState(false)
 
   const handleClone = async (e) => {
     e.stopPropagation()
+    if (!window.confirm(`Create an online version of this promo for ${r.brand_names}?`)) return
     setCloning(true)
     await onClone(r)
     setCloning(false)
     setDone(true)
-    setTimeout(() => { setDone(false); setShowConfirm(false) }, 2000)
+    setTimeout(() => setDone(false), 3000)
   }
 
   if (done) return (
-    <span className="text-[10px] font-mono text-blue-600 px-2 py-1">✓ Created</span>
-  )
-
-  if (showConfirm) return (
-    <span className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-      <span className="text-[10px] font-body text-blue-700">Create online promo?</span>
-      <button
-        onClick={handleClone}
-        disabled={cloning}
-        className="text-[10px] font-mono bg-blue-600 text-white px-2 py-0.5 rounded transition-colors hover:bg-blue-700 disabled:opacity-50">
-        {cloning ? '…' : 'Yes'}
-      </button>
-      <button
-        onClick={e => { e.stopPropagation(); setShowConfirm(false) }}
-        className="text-[10px] font-mono text-muted hover:text-ink">
-        No
-      </button>
+    <span className="text-[10px] font-mono text-blue-600 border border-blue-200 bg-blue-50 px-2 py-0.5 rounded-full">
+      ✓ Created
     </span>
   )
 
   return (
     <button
-      onClick={e => { e.stopPropagation(); setShowConfirm(true) }}
-      className="text-[10px] font-mono text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-full transition-colors"
+      onClick={handleClone}
+      disabled={cloning}
+      className="text-[10px] font-mono text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-full transition-colors disabled:opacity-50"
       title="Clone as Online Promo">
-      + Online
+      {cloning ? '…' : '+ Online'}
     </button>
   )
 }
