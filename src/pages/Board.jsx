@@ -336,11 +336,54 @@ export default function Board() {
                     onPatch={patch} updating={updatingId === r.id}
                     isAdmin={isAdmin}
                     allRows={rows}
-                    userEmail={user?.email} />
+                    userEmail={user?.email}
+                    onClone={cloneAsOnline} />
                 ))}
               </div>
             </div>
           ))}
+
+          {/* Past Promos section */}
+          {groupedPast.length > 0 && (
+            <div className="mt-8" ref={pastSectionRef}>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex items-center gap-2 bg-gray-300 text-gray-600 px-3 py-1 rounded-full">
+                  <span className="text-[11px] font-mono font-bold tracking-wider">Past Promos</span>
+                  <span className="text-[10px] opacity-60">·</span>
+                  <span className="text-[10px] font-mono opacity-70">{pastRows.length} promo{pastRows.length !== 1 ? 's' : ''}</span>
+                </div>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+              <div className="space-y-6 opacity-60">
+                {groupedPast.map(({ date, items }) => (
+                  <div key={date}>
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="flex items-center gap-2 bg-gray-400 text-white px-3 py-1 rounded-full">
+                        <span className="text-[11px] font-mono font-bold tracking-wider">
+                          {date ? fmtDate(date) : 'No Date'}
+                        </span>
+                        <span className="text-[10px] opacity-60">·</span>
+                        <span className="text-[10px] font-mono opacity-70">{items.length} promo{items.length > 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="flex-1 h-px bg-border" />
+                    </div>
+                    <div className="space-y-2">
+                      {items.map(r => (
+                        <PromoRow key={r.id} row={r}
+                          expanded={expandedId === r.id}
+                          onToggle={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                          onPatch={patch} updating={updatingId === r.id}
+                          isAdmin={isAdmin}
+                          allRows={rows}
+                          userEmail={user?.email}
+                          onClone={cloneAsOnline} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
