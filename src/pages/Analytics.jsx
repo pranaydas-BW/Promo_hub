@@ -801,8 +801,7 @@ function OnlineOfflineTab({ allPromos }) {
 
   // Filter to promos active within the selected date range
   const dateFiltered = allPromos.filter(r => {
-    const ranges = Array.isArray(r.date_ranges) ? r.date_ranges : []
-    return ranges.some(dr => (dr.from || '') <= dateTo && (dr.till || '') >= dateFrom)
+    return (r.from || '') <= dateTo && (r.till || '') >= dateFrom
   })
 
   const onlinePromos = dateFiltered.filter(r => (r.store || '').includes('Online'))
