@@ -786,61 +786,6 @@ export default function Analytics() {
           {tab === 'onlineoffline' && (
             <OnlineOfflineTab filtered={filtered} />
           )}
-              <div>
-                <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-                  <div>
-                    <h2 className="font-display font-bold text-xl text-ink flex items-center gap-2">
-                      🌐 Online vs Offline
-                    </h2>
-                    <p className="text-sm text-muted mt-1">
-                      {onlinePromos.length} online · {offlinePromos.length} offline
-                    </p>
-                  </div>
-                  <select
-                    className="bg-white border border-border rounded-lg px-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-accent/20"
-                    value={ooFilter} onChange={e => setOoFilter(e.target.value)}>
-                    <option value="All">All Offers</option>
-                    <option value="Offline">Offline Only</option>
-                  </select>
-                </div>
-                <div className="overflow-x-auto rounded-xl border border-border bg-white">
-                  <table className="min-w-full text-sm font-body">
-                    <thead className="bg-paper border-b border-border">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">#</th>
-                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Brand</th>
-                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Category</th>
-                        <th className="px-4 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted">Offline Offers</th>
-                        <th className="px-4 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted">Online Offers</th>
-                        <th className="px-4 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-muted">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {brandList.length === 0 ? (
-                        <tr><td colSpan={6} className="text-center py-10 text-muted">No data for selected filters.</td></tr>
-                      ) : brandList.map((b, i) => (
-                        <tr key={b.brand} className="border-b border-border last:border-0 hover:bg-paper/40">
-                          <td className="px-4 py-3 text-muted font-mono text-xs">{i + 1}</td>
-                          <td className="px-4 py-3 font-medium text-ink">{b.brand}</td>
-                          <td className="px-4 py-3 text-muted text-xs">{b.category}</td>
-                          <td className="px-4 py-3 text-center">
-                            {b.offline > 0
-                              ? <span className="bg-ink text-white text-xs font-mono px-2 py-0.5 rounded-full">{b.offline}</span>
-                              : <span className="text-border">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            {b.online > 0
-                              ? <span className="bg-accent text-white text-xs font-mono px-2 py-0.5 rounded-full">{b.online}</span>
-                              : <span className="text-border">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-center font-mono text-xs font-bold text-ink">{b.online + b.offline}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
 
         </>
       )}
