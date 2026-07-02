@@ -495,7 +495,7 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
         <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
           <StatusBadge status={r.status} />
           <CurrentStatusDot status={effectiveCurrentStatus} />
-          {isAdmin && (r.store || '') !== 'Online' && (
+          {(r.store || '') !== 'Online' && (
             <InlineCloneButton row={r} onClone={onClone} />
           )}
         </div>
