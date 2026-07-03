@@ -1008,16 +1008,32 @@ function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, bran
 
   const fetchSheetData = async () => {
     const encodedTab = encodeURIComponent(tabName)
+    // Use TSV export which is more reliable for sheets with commas in values
     const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodedTab}`
     const res = await fetch(url)
     if (!res.ok) throw new Error(`Failed to fetch sheet: ${res.status}`)
     const text = await res.text()
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
     if (lines.length < 2) return { headers: [], rows: [] }
-    const parse = line => line.split(',').map(v => v.replace(/^"|"$/g, '').trim())
-    const headers = parse(lines[0])
+
+    // Detect delimiter — tab or comma
+    const isTsv = lines[0].includes('\t')
+    const parseCSVLine = line => {
+      if (isTsv) return line.split('\t').map(v => v.trim())
+      const result = []
+      let cur = '', inQ = false
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i]
+        if (ch === '"') { inQ = !inQ }
+        else if (ch === ',' && !inQ) { result.push(cur.trim()); cur = '' }
+        else { cur += ch }
+      }
+      result.push(cur.trim())
+      return result
+    }
+    const headers = parseCSVLine(lines[0])
     const rows = lines.slice(1).map(line => {
-      const vals = parse(line)
+      const vals = parseCSVLine(line)
       const obj = {}
       headers.forEach((h, i) => { obj[h] = vals[i] || '' })
       return obj
