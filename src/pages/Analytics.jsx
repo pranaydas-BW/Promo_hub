@@ -130,6 +130,7 @@ export default function Analytics() {
     ...current.flatMap(r => {
       const ranges = Array.isArray(r.date_ranges) ? r.date_ranges : []
       return ranges.map(dr => ({
+        promoId: r.promo_request_id || '',
         brand: r.brand_names || '',
         category: normalizeCategory(r.category || ''),
         from: dr.from,
@@ -297,27 +298,18 @@ export default function Analytics() {
     : endingSoonAll
 
   // ── Day view ──────────────────────────────────────────────────────────────
-  const dayPromos = filtered
+  const dayPromosList = filtered
     .filter(r => r.from && r.till && r.from <= selectedDay && r.till >= selectedDay)
-    .reduce((acc, r) => {
-      const key = r.brand + '|' + r.category
-      if (!acc[key]) acc[key] = {
-        brand: r.brand, category: r.category,
-        from: r.from, till: r.till,
-        assortment: r.assortment || '',
-        skuLink: r.skuLink || '',
-        offers: []
-      }
-      // Keep earliest from and latest till
-      if (r.from < acc[key].from) acc[key].from = r.from
-      if (r.till > acc[key].till) acc[key].till = r.till
-      if (r.assortment && !acc[key].assortment) acc[key].assortment = r.assortment
-      if (r.skuLink && !acc[key].skuLink) acc[key].skuLink = r.skuLink
-      if (r.details && !acc[key].offers.includes(r.details.trim()))
-        acc[key].offers.push(r.details.trim())
-      return acc
-    }, {})
-  const dayPromosList = Object.values(dayPromos)
+    .map(r => ({
+      promoId: r.promoId || '',
+      brand: r.brand,
+      category: r.category,
+      from: r.from,
+      till: r.till,
+      assortment: r.assortment || '',
+      skuLink: r.skuLink || '',
+      offers: r.details ? [r.details.trim()] : [],
+    }))
     .sort((a, b) => a.category.localeCompare(b.category) || a.brand.localeCompare(b.brand))
 
   // ── Brand leaderboard ─────────────────────────────────────────────────────
@@ -682,6 +674,7 @@ export default function Analytics() {
                     <thead className="bg-paper border-b border-border">
                       <tr>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">#</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Promo ID</th>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Brand</th>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Category</th>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Start Date</th>
@@ -695,6 +688,7 @@ export default function Analytics() {
                       {dayPromosList.map((r, i) => (
                         <tr key={i} className="border-b border-border last:border-0 hover:bg-paper/40">
                           <td className="px-4 py-3 text-muted font-mono text-xs">{i + 1}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-muted">{r.promoId || '—'}</td>
                           <td className="px-4 py-3 font-medium text-ink">{r.brand}</td>
                           <td className="px-4 py-3 text-muted text-xs">{r.category}</td>
                           <td className="px-4 py-3 font-mono text-xs text-ink">{fmtDate(r.from)}</td>
