@@ -628,6 +628,12 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
                 {isAdmin && !isRSPReversal && r.offer_type !== 'RSP Update' && r.sku_file_name && !r.sku_file_link && (
                   <SkuReUpload row={r} onPatch={onPatch} />
                 )}
+                {/* Warning: Selected SKUs but no file uploaded */}
+                {r.assortment_type === 'Selected SKUs' && !r.sku_file_link && !r.sku_file_name && (
+                  <span className="flex items-center gap-1 text-[11px] font-body text-warning bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg">
+                    ⚠ Selected SKUs — no SKU file uploaded
+                  </span>
+                )}
                 {/* RSP file — only for RSP Updates (not reversals) */}
                 {r.offer_type === 'RSP Update' && !isRSPReversal && r.rsp_file_link && <ELink href={r.rsp_file_link} label="RSP File" />}
                 {r.offer_type === 'RSP Update' && !isRSPReversal && r.rsp_file_name && r.rsp_file_data && (
