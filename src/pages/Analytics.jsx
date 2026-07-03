@@ -95,7 +95,7 @@ export default function Analytics() {
       }
       const { data: cur } = await supabase
         .from('promo_requests')
-        .select('brand_names,category,date_ranges,promo_details,promotion_name,status,assortment_type,sku_file_link,store,campaign_id,offer_type')
+        .select('promo_request_id,brand_names,category,date_ranges,promo_details,promotion_name,status,assortment_type,sku_file_link,store,campaign_id,offer_type')
         .limit(5000)
       // #2 — fetch top brands from Supabase
       const { data: tb } = await supabase
