@@ -86,7 +86,7 @@ export default function Analytics() {
       while (true) {
         const { data } = await supabase
           .from('historical_promos')
-          .select('brand_names,category,valid_from,valid_till,promotion_details,promotion_name,status,store')
+          .select('promo_request_id,brand_names,category,valid_from,valid_till,promotion_details,promotion_name,status,store,assortment_type,sku_file_link')
           .range(from, from + 999)
         if (!data || data.length === 0) break
         hist = [...hist, ...data]
@@ -115,6 +115,7 @@ export default function Analytics() {
 
   const allPromos = [
     ...historical.map(r => ({
+      promoId: r.promo_request_id || '',
       brand: r.brand_names || '',
       category: normalizeCategory(r.category || ''),
       from: r.valid_from,
@@ -124,7 +125,7 @@ export default function Analytics() {
       store: r.store || '',
       status: r.status || '',
       assortment: r.assortment_type || '',
-      skuLink: '',
+      skuLink: r.sku_file_link || '',
       source: 'historical',
     })),
     ...current.flatMap(r => {
