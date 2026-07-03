@@ -1016,17 +1016,23 @@ function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, bran
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
     if (lines.length < 2) return { headers: [], rows: [] }
 
-    // Detect delimiter — tab or comma
-    const isTsv = lines[0].includes('\t')
     const parseCSVLine = line => {
-      if (isTsv) return line.split('\t').map(v => v.trim())
       const result = []
       let cur = '', inQ = false
       for (let i = 0; i < line.length; i++) {
         const ch = line[i]
-        if (ch === '"') { inQ = !inQ }
-        else if (ch === ',' && !inQ) { result.push(cur.trim()); cur = '' }
-        else { cur += ch }
+        if (ch === '"') {
+          if (inQ && line[i+1] === '"') { cur += '"'; i++ }
+          else { inQ = !inQ }
+        } else if (ch === ',' && !inQ) {
+          result.push(cur.trim())
+          cur = ''
+        } else if (ch === '\t' && !inQ) {
+          result.push(cur.trim())
+          cur = ''
+        } else {
+          cur += ch
+        }
       }
       result.push(cur.trim())
       return result
