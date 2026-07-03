@@ -85,16 +85,7 @@ export default function Board() {
   }
 
   const cloneAsOnline = async (r) => {
-    const { data: existing } = await supabase
-      .from('promo_requests')
-      .select('promo_request_id')
-      .order('promo_request_id', { ascending: false })
-      .limit(1)
-    const lastId = existing?.[0]?.promo_request_id || '#BWP0000'
-    const num = parseInt(lastId.replace('#BWP', ''), 10) + 1
-    const newId = `#BWP${String(num).padStart(4, '0')}`
     const { data: newRow, error } = await supabase.from('promo_requests').insert({
-      promo_request_id: newId,
       brand_names: r.brand_names,
       category: r.category,
       store: 'Online',
