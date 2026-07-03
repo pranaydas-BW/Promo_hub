@@ -643,7 +643,7 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
                   </span>
                 )}
                 {/* Online barcode filter buttons */}
-                {(r.store || '') === 'Online' && r.sku_file_link && (
+                {(r.store || '') === 'Online' && (
                   <>
                     <OnlineBarcodeButton
                       row={r}
