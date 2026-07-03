@@ -100,6 +100,14 @@ export default function Board() {
       campaign_id: r.campaign_id,
       broadway_pct_split: r.broadway_pct_split,
       brand_pct_split: r.brand_pct_split,
+      discount_on: r.discount_on,
+      sku_file_link: r.sku_file_link,
+      sku_file_name: r.sku_file_name,
+      sku_file_data: r.sku_file_data,
+      rsp_file_link: r.rsp_file_link,
+      rsp_file_name: r.rsp_file_name,
+      approval_email: r.approval_email,
+      approval_file_name: r.approval_file_name,
       status: 'Pending',
       current_status: 'Not Live',
       cloned_from_id: r.promo_request_id,
@@ -634,6 +642,27 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
                     ⚠ Selected SKUs — no SKU file uploaded
                   </span>
                 )}
+                {/* Online barcode filter buttons */}
+                {(r.store || '') === 'Online' && r.sku_file_link && (
+                  <>
+                    <OnlineBarcodeButton
+                      row={r}
+                      label="⬇ App SKU File"
+                      sheetId="1G0HEfYQHyPMt0SiBMqEZSVq1pOhUKBmzeuxzPILpFy4"
+                      tabName="barcodes <> brand"
+                      barcodeCol="A"
+                      brandCol="B"
+                    />
+                    <OnlineBarcodeButton
+                      row={r}
+                      label="⬇ Shopify SKU File"
+                      sheetId="1vKBMLuDD9D50RffQHnwJ5P3SQCOQoFgz5QuVYDLIoHA"
+                      tabName="Shopify_Catalog"
+                      barcodeCol="V"
+                      brandCol="E"
+                    />
+                  </>
+                )}
                 {/* RSP file — only for RSP Updates (not reversals) */}
                 {r.offer_type === 'RSP Update' && !isRSPReversal && r.rsp_file_link && <ELink href={r.rsp_file_link} label="RSP File" />}
                 {r.offer_type === 'RSP Update' && !isRSPReversal && r.rsp_file_name && r.rsp_file_data && (
@@ -968,6 +997,87 @@ function InlineCloneButton({ row: r, onClone }) {
       className="text-[10px] font-mono text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-full transition-colors disabled:opacity-50"
       title="Clone as Online Promo">
       {cloning ? '…' : '+ Online'}
+    </button>
+  )
+}
+
+function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, brandCol = 'B' }) {
+  const [loading, setLoading] = useState(false)
+
+  const colToIndex = (col) => col.toUpperCase().charCodeAt(0) - 65
+
+  const fetchSheetData = async () => {
+    const encodedTab = encodeURIComponent(tabName)
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodedTab}`
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`Failed to fetch sheet: ${res.status}`)
+    const text = await res.text()
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
+    if (lines.length < 2) return { headers: [], rows: [] }
+    const parse = line => line.split(',').map(v => v.replace(/^"|"$/g, '').trim())
+    const headers = parse(lines[0])
+    const rows = lines.slice(1).map(line => {
+      const vals = parse(line)
+      const obj = {}
+      headers.forEach((h, i) => { obj[h] = vals[i] || '' })
+      return obj
+    })
+    return { headers, rows }
+  }
+
+  const handleClick = async () => {
+    setLoading(true)
+    try {
+      const { headers, rows } = await fetchSheetData()
+      const barcodeIdx = colToIndex(barcodeCol)
+      const barcodeHeader = headers[barcodeIdx] || barcodeCol
+
+      if (r.sku_file_link) {
+        // Has SKU file — fetch promo CSV and filter to catalog barcodes
+        const promoRes = await fetch(r.sku_file_link)
+        const promoText = await promoRes.text()
+        const promoLines = promoText.split('\n').map(l => l.trim()).filter(l => l.length > 0)
+        if (promoLines.length < 2) { alert('SKU file is empty'); setLoading(false); return }
+        const promoHeaders = promoLines[0].split(',').map(h => h.trim())
+        const promoRows = promoLines.slice(1).map(line => {
+          const vals = line.split(',')
+          const obj = {}
+          promoHeaders.forEach((h, i) => { obj[h] = (vals[i] || '').trim() })
+          return obj
+        }).filter(obj => Object.values(obj).some(v => v.length > 0))
+
+        const catalogBarcodes = new Set(rows.map(row => (row[barcodeHeader] || '').toString().trim()))
+        const promoBarcodeCol = promoHeaders.find(h => h.toLowerCase().includes('barcode')) || promoHeaders[0]
+        const filtered = promoRows.filter(row => catalogBarcodes.has((row[promoBarcodeCol] || '').toString().trim()))
+
+        if (!filtered.length) { alert('No matching barcodes found in catalog'); setLoading(false); return }
+        exportCSV(filtered, `${r.promo_request_id}_${label.replace(/[^a-zA-Z0-9]/g, '_')}.csv`)
+      } else {
+        // No SKU file — All SKUs, filter catalog by brand
+        const brandColIdx = colToIndex(brandCol)
+        const brandName = (r.brand_names || '').toLowerCase().trim()
+        const filtered = rows.filter(row => {
+          const rowBrand = (Object.values(row)[brandColIdx] || '').toLowerCase().trim()
+          return rowBrand.includes(brandName) || brandName.includes(rowBrand)
+        })
+
+        if (!filtered.length) { alert('No barcodes found for this brand in catalog'); setLoading(false); return }
+        exportCSV(filtered, `${r.promo_request_id}_${label.replace(/[^a-zA-Z0-9]/g, '_')}.csv`)
+      }
+    } catch (e) {
+      console.error(e)
+      alert('Failed to fetch catalog: ' + e.message)
+    }
+    setLoading(false)
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={loading}
+      className="flex items-center gap-1.5 text-xs font-body text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+      {loading ? <Loader2 size={11} className="animate-spin" /> : null}
+      {loading ? 'Fetching…' : label}
     </button>
   )
 }
