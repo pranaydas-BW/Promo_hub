@@ -622,64 +622,77 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
                 </div>
               )}
 
-              <div className="flex flex-wrap gap-3">
-                {/* SKU file — only for Promotions */}
-                {!isRSPReversal && r.offer_type !== 'RSP Update' && r.sku_file_link && <ELink href={r.sku_file_link} label="SKU File" />}
-                {!isRSPReversal && r.offer_type !== 'RSP Update' && r.sku_file_name && r.sku_file_data && (
-                  <button
-                    onClick={() => downloadCsvFromData(r.sku_file_name, r.sku_file_data)}
-                    className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
-                    <Download size={11} /> {r.sku_file_name}
-                  </button>
+              <div className="flex flex-wrap gap-4">
+                {/* ── Offline / RSP Files ───────────────────────────── */}
+                {((!isRSPReversal && r.offer_type !== 'RSP Update' && (r.sku_file_link || r.sku_file_name || r.assortment_type === 'Selected SKUs')) ||
+                  (r.offer_type === 'RSP Update' && !isRSPReversal && (r.rsp_file_link || r.rsp_file_name)) ||
+                  (isRSPReversal && (r.rsp_file_link || r.rsp_file_name))) && (
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-purple-500 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block" /> Offline
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {/* Promotion SKU file */}
+                      {!isRSPReversal && r.offer_type !== 'RSP Update' && r.sku_file_link && <ELink href={r.sku_file_link} label="SKU File" />}
+                      {!isRSPReversal && r.offer_type !== 'RSP Update' && r.sku_file_name && r.sku_file_data && (
+                        <button onClick={() => downloadCsvFromData(r.sku_file_name, r.sku_file_data)}
+                          className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
+                          <Download size={11} /> {r.sku_file_name}
+                        </button>
+                      )}
+                      {isAdmin && !isRSPReversal && r.offer_type !== 'RSP Update' && r.sku_file_name && !r.sku_file_link && (
+                        <SkuReUpload row={r} onPatch={onPatch} />
+                      )}
+                      {r.assortment_type === 'Selected SKUs' && !r.sku_file_link && !r.sku_file_name && (
+                        <span className="flex items-center gap-1 text-[11px] font-body text-warning bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg">
+                          ⚠ No SKU file uploaded
+                        </span>
+                      )}
+                      {/* RSP file */}
+                      {r.offer_type === 'RSP Update' && !isRSPReversal && r.rsp_file_link && <ELink href={r.rsp_file_link} label="RSP File" />}
+                      {r.offer_type === 'RSP Update' && !isRSPReversal && r.rsp_file_name && r.rsp_file_data && (
+                        <button onClick={() => downloadCsvFromData(r.rsp_file_name, r.rsp_file_data)}
+                          className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
+                          <Download size={11} /> {r.rsp_file_name}
+                        </button>
+                      )}
+                      {/* Reversal file */}
+                      {isRSPReversal && r.rsp_file_link && <ELink href={r.rsp_file_link} label="Reversal RSP File" />}
+                      {isRSPReversal && r.rsp_file_name && r.rsp_file_data && (
+                        <button onClick={() => downloadCsvFromData(r.rsp_file_name, r.rsp_file_data)}
+                          className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
+                          <Download size={11} /> {r.rsp_file_name}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 )}
-                {/* Re-upload SKU file if name exists but link is missing */}
-                {isAdmin && !isRSPReversal && r.offer_type !== 'RSP Update' && r.sku_file_name && !r.sku_file_link && (
-                  <SkuReUpload row={r} onPatch={onPatch} />
-                )}
-                {/* Warning: Selected SKUs but no file uploaded */}
-                {r.assortment_type === 'Selected SKUs' && !r.sku_file_link && !r.sku_file_name && (
-                  <span className="flex items-center gap-1 text-[11px] font-body text-warning bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg">
-                    ⚠ Selected SKUs — no SKU file uploaded
-                  </span>
-                )}
-                {/* Online barcode filter buttons */}
+
+                {/* ── Online SKU Files ──────────────────────────────── */}
                 {(r.store || '') === 'Online' && (
-                  <>
-                    <OnlineBarcodeButton
-                      row={r}
-                      label="⬇ App SKU File"
-                      sheetId="1G0HEfYQHyPMt0SiBMqEZSVq1pOhUKBmzeuxzPILpFy4"
-                      tabName="barcodes <> brand"
-                      barcodeCol="A"
-                      brandCol="B"
-                    />
-                    <OnlineBarcodeButton
-                      row={r}
-                      label="⬇ Shopify SKU File"
-                      sheetId="1vKBMLuDD9D50RffQHnwJ5P3SQCOQoFgz5QuVYDLIoHA"
-                      tabName="Shopify_Catalog"
-                      barcodeCol="V"
-                      brandCol="E"
-                    />
-                  </>
-                )}
-                {/* RSP file — only for RSP Updates (not reversals) */}
-                {r.offer_type === 'RSP Update' && !isRSPReversal && r.rsp_file_link && <ELink href={r.rsp_file_link} label="RSP File" />}
-                {r.offer_type === 'RSP Update' && !isRSPReversal && r.rsp_file_name && r.rsp_file_data && (
-                  <button
-                    onClick={() => downloadCsvFromData(r.rsp_file_name, r.rsp_file_data)}
-                    className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
-                    <Download size={11} /> {r.rsp_file_name}
-                  </button>
-                )}
-                {/* Reversal file — only for RSP Reversals */}
-                {isRSPReversal && r.rsp_file_link && <ELink href={r.rsp_file_link} label="Reversal RSP File" />}
-                {isRSPReversal && r.rsp_file_name && r.rsp_file_data && (
-                  <button
-                    onClick={() => downloadCsvFromData(r.rsp_file_name, r.rsp_file_data)}
-                    className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
-                    <Download size={11} /> {r.rsp_file_name}
-                  </button>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-blue-500 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block" /> Online
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      <OnlineBarcodeButton
+                        row={r}
+                        label="⬇ App SKU File"
+                        sheetId="1G0HEfYQHyPMt0SiBMqEZSVq1pOhUKBmzeuxzPILpFy4"
+                        tabName="barcodes <> brand"
+                        barcodeCol="A"
+                        brandCol="B"
+                      />
+                      <OnlineBarcodeButton
+                        row={r}
+                        label="⬇ Shopify SKU File"
+                        sheetId="1vKBMLuDD9D50RffQHnwJ5P3SQCOQoFgz5QuVYDLIoHA"
+                        tabName="Shopify_Catalog"
+                        barcodeCol="V"
+                        brandCol="E"
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
