@@ -1099,7 +1099,6 @@ function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, bran
         if (!filtered.length) { alert('No barcodes found for this brand in catalog'); setLoading(false); return }
         exportCSV(filtered, `${r.promo_request_id}_${label.replace(/[^a-zA-Z0-9]/g, '_')}.csv`)
       }
-      }
     } catch (e) {
       console.error(e)
       alert('Failed to fetch catalog: ' + e.message)
