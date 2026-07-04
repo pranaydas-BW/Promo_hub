@@ -1022,33 +1022,36 @@ function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, bran
     const res = await fetch(url)
     if (!res.ok) throw new Error(`Failed to fetch sheet: ${res.status}`)
     const text = await res.text()
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
-    if (lines.length < 2) return { headers: [], rows: [] }
 
-    const parseCSVLine = line => {
-      const result = []
-      let cur = '', inQ = false
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i]
+    // Full CSV parser that handles quoted multi-line fields
+    const parseFullCSV = (csv) => {
+      const records = []
+      let cur = '', inQ = false, fields = []
+      for (let i = 0; i < csv.length; i++) {
+        const ch = csv[i]
+        const next = csv[i + 1]
         if (ch === '"') {
-          if (inQ && line[i+1] === '"') { cur += '"'; i++ }
+          if (inQ && next === '"') { cur += '"'; i++ }
           else { inQ = !inQ }
         } else if (ch === ',' && !inQ) {
-          result.push(cur.trim())
-          cur = ''
-        } else if (ch === '\t' && !inQ) {
-          result.push(cur.trim())
-          cur = ''
+          fields.push(cur.trim()); cur = ''
+        } else if ((ch === '\n' || ch === '\r') && !inQ) {
+          if (ch === '\r' && next === '\n') i++
+          fields.push(cur.trim()); cur = ''
+          if (fields.some(f => f.length > 0)) records.push(fields)
+          fields = []
         } else {
           cur += ch
         }
       }
-      result.push(cur.trim())
-      return result
+      if (cur || fields.length) { fields.push(cur.trim()); if (fields.some(f => f.length > 0)) records.push(fields) }
+      return records
     }
-    const headers = parseCSVLine(lines[0])
-    const rows = lines.slice(1).map(line => {
-      const vals = parseCSVLine(line)
+
+    const records = parseFullCSV(text)
+    if (records.length < 2) return { headers: [], rows: [] }
+    const headers = records[0]
+    const rows = records.slice(1).map(vals => {
       const obj = {}
       headers.forEach((h, i) => { obj[h] = vals[i] || '' })
       return obj
