@@ -1068,12 +1068,13 @@ function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, bran
       const barcodeHeader = headers[barcodeIdx] || barcodeCol
 
       if (r.sku_file_link) {
-        // Has SKU file — fetch promo CSV and filter to catalog barcodes
+        // SKU Level — fetch promo barcodes, filter catalog rows by them
         const promoRes = await fetch(r.sku_file_link)
         const promoText = await promoRes.text()
         const promoLines = promoText.split('\n').map(l => l.trim()).filter(l => l.length > 0)
         if (promoLines.length < 2) { alert('SKU file is empty'); setLoading(false); return }
         const promoHeaders = promoLines[0].split(',').map(h => h.trim())
+        const promoBarcodeCol = promoHeaders.find(h => h.toLowerCase().includes('barcode')) || promoHeaders[0]
         const promoRows = promoLines.slice(1).map(line => {
           const vals = line.split(',')
           const obj = {}
@@ -1081,14 +1082,13 @@ function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, bran
           return obj
         }).filter(obj => Object.values(obj).some(v => v.length > 0))
 
-        const catalogBarcodes = new Set(rows.map(row => (row[barcodeHeader] || '').toString().trim()))
-        const promoBarcodeCol = promoHeaders.find(h => h.toLowerCase().includes('barcode')) || promoHeaders[0]
-        const filtered = promoRows.filter(row => catalogBarcodes.has((row[promoBarcodeCol] || '').toString().trim()))
+        const promoBarcodes = new Set(promoRows.map(row => (row[promoBarcodeCol] || '').toString().trim()).filter(Boolean))
+        const filtered = rows.filter(row => promoBarcodes.has((row[barcodeHeader] || '').toString().trim()))
 
         if (!filtered.length) { alert('No matching barcodes found in catalog'); setLoading(false); return }
         exportCSV(filtered, `${r.promo_request_id}_${label.replace(/[^a-zA-Z0-9]/g, '_')}.csv`)
       } else {
-        // No SKU file — All SKUs, filter catalog by brand
+        // All SKUs — filter catalog rows by brand
         const brandColIdx = colToIndex(brandCol)
         const brandName = (r.brand_names || '').toLowerCase().trim()
         const filtered = rows.filter(row => {
@@ -1098,6 +1098,7 @@ function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, bran
 
         if (!filtered.length) { alert('No barcodes found for this brand in catalog'); setLoading(false); return }
         exportCSV(filtered, `${r.promo_request_id}_${label.replace(/[^a-zA-Z0-9]/g, '_')}.csv`)
+      }
       }
     } catch (e) {
       console.error(e)
