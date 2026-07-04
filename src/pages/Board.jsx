@@ -1017,8 +1017,8 @@ function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, bran
 
   const fetchSheetData = async () => {
     const encodedTab = encodeURIComponent(tabName)
-    // Use export/download URL which always has fresh data
-    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&sheet=${encodedTab}`
+    // gviz/tq allows CORS from browser; add cache-bust param for fresh data
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodedTab}&t=${Date.now()}`
     const res = await fetch(url)
     if (!res.ok) throw new Error(`Failed to fetch sheet: ${res.status}`)
     const text = await res.text()
