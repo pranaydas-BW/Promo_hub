@@ -453,12 +453,7 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
                 🌐 ONLINE
               </span>
             )}
-            {/* Cloned from tag */}
-            {r.cloned_from_id && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded-full border shrink-0 bg-blue-50 text-blue-600 border-blue-200">
-                Cloned from {r.cloned_from_id}
-              </span>
-            )}
+
             <p className="font-display font-semibold text-sm text-ink truncate">{r.brand_names}</p>
           </div>
           <p className="text-[11px] text-muted truncate">{r.category}</p>
@@ -545,6 +540,7 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {[
               ['Promo Request ID', r.promo_request_id],
+              ['Cloned From', r.cloned_from_id],
               ['Ginesys Promo ID', r.ginesys_promo_id],
               ['Shopify Discount ID', r.shopify_discount_id],
               ['Promotion Name', r.promotion_name],
