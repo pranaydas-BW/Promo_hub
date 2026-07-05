@@ -1010,6 +1010,19 @@ function InlineCloneButton({ row: r, onClone }) {
   )
 }
 
+const SHOPIFY_REQUIRED_COLS = [
+  'product_id', 'handle', 'product_title', 'vendor', 'variant_id',
+  'status', 'tags', 'sku', 'barcode', 'price', 'compare_at_price'
+]
+
+function filterShopifyCols(rows) {
+  return rows.map(row => {
+    const out = {}
+    SHOPIFY_REQUIRED_COLS.forEach(col => { out[col] = row[col] || '' })
+    return out
+  })
+}
+
 function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, brandCol = 'B' }) {
   const [loading, setLoading] = useState(false)
 
@@ -1085,7 +1098,7 @@ function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, bran
         const filtered = rows.filter(row => promoBarcodes.has((row[barcodeHeader] || '').toString().trim()))
 
         if (!filtered.length) { alert('No matching barcodes found in catalog'); setLoading(false); return }
-        exportCSV(filtered, `${r.promo_request_id}_${label.replace(/[^a-zA-Z0-9]/g, '_')}.csv`)
+        exportCSV(filterShopifyCols(filtered), `${r.promo_request_id}_${label.replace(/[^a-zA-Z0-9]/g, '_')}.csv`)
       } else {
         // All SKUs — filter catalog rows by brand
         const brandColIdx = colToIndex(brandCol)
@@ -1096,7 +1109,7 @@ function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, bran
         })
 
         if (!filtered.length) { alert('No barcodes found for this brand in catalog'); setLoading(false); return }
-        exportCSV(filtered, `${r.promo_request_id}_${label.replace(/[^a-zA-Z0-9]/g, '_')}.csv`)
+        exportCSV(filterShopifyCols(filtered), `${r.promo_request_id}_${label.replace(/[^a-zA-Z0-9]/g, '_')}.csv`)
       }
     } catch (e) {
       console.error(e)
