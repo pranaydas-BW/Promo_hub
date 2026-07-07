@@ -1021,6 +1021,9 @@ function filterShopifyCols(rows) {
   return rows.map(row => {
     const out = {}
     SHOPIFY_REQUIRED_COLS.forEach(col => { out[col] = row[col] || '' })
+    // Fallback: if barcode is empty, use sku; if sku is empty, use variant_id
+    if (!out.barcode) out.barcode = out.sku || row['variant_id'] || ''
+    if (!out.sku) out.sku = out.barcode || row['variant_id'] || ''
     return out
   })
 }
@@ -1032,9 +1035,8 @@ function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, bran
 
   const fetchSheetData = async () => {
     const encodedTab = encodeURIComponent(tabName)
-    // Use allorigins proxy to fetch export URL (gviz/tq strips some cell values)
-    const exportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&sheet=${encodedTab}`
-    const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(exportUrl)}`
+    // Use gviz/tq but request TSV format which preserves all values including text-formatted numbers
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodedTab}&headers=1`
     const res = await fetch(url)
     if (!res.ok) throw new Error(`Failed to fetch sheet: ${res.status}`)
     const text = await res.text()
