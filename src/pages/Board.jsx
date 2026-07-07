@@ -1035,8 +1035,11 @@ function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, bran
 
   const fetchSheetData = async () => {
     const encodedTab = encodeURIComponent(tabName)
-    // Use gviz/tq but request TSV format which preserves all values including text-formatted numbers
-    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodedTab}&headers=1`
+    // Use Apps Script web app for Shopify catalog (preserves all values), gviz/tq for others
+    const SHOPIFY_SHEET_ID = '1vKBMLuDD9D50RffQHnwJ5P3SQCOQoFgz5QuVYDLIoHA'
+    const url = sheetId === SHOPIFY_SHEET_ID
+      ? 'https://script.google.com/macros/s/AKfycbznxvfhNbTIe5oF5f5_iKIL4otb8aMAWixxm9Bnx3-jRU6I4u4YD1egM-wKB5p7FoZwhA/exec'
+      : `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodedTab}&t=${Date.now()}`
     const res = await fetch(url)
     if (!res.ok) throw new Error(`Failed to fetch sheet: ${res.status}`)
     const text = await res.text()
