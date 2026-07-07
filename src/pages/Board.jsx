@@ -1104,10 +1104,17 @@ function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, bran
         exportCSV(out1, `${r.promo_request_id}_${label.replace(/[^a-zA-Z0-9]/g, '_')}.csv`)
       } else {
         // All SKUs — filter catalog rows by brand
+        const barcodeIdx = colToIndex(barcodeCol)
         const brandColIdx = colToIndex(brandCol)
         const brandName = (r.brand_names || '').toLowerCase().trim()
+        // Try matching by header name first, fall back to index
+        const getBrand = row => {
+          const byName = row['vendor'] || row['brand'] || row['Brand Name'] || row['name'] || ''
+          if (byName) return byName.toLowerCase().trim()
+          return (Object.values(row)[brandColIdx] || '').toLowerCase().trim()
+        }
         const filtered = rows.filter(row => {
-          const rowBrand = (Object.values(row)[brandColIdx] || '').toLowerCase().trim()
+          const rowBrand = getBrand(row)
           return rowBrand.includes(brandName) || brandName.includes(rowBrand)
         })
 
