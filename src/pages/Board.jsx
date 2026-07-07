@@ -678,6 +678,7 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
                         tabName="barcodes <> brand"
                         barcodeCol="A"
                         brandCol="B"
+                        filterCols={false}
                       />
                       <OnlineBarcodeButton
                         row={r}
@@ -686,6 +687,7 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
                         tabName="Shopify_Catalog"
                         barcodeCol="V"
                         brandCol="E"
+                        filterCols={true}
                       />
                     </div>
                   </div>
@@ -1023,7 +1025,7 @@ function filterShopifyCols(rows) {
   })
 }
 
-function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, brandCol = 'B' }) {
+function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, brandCol = 'B', filterCols = false }) {
   const [loading, setLoading] = useState(false)
 
   const colToIndex = (col) => col.toUpperCase().charCodeAt(0) - 65
@@ -1098,7 +1100,8 @@ function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, bran
         const filtered = rows.filter(row => promoBarcodes.has((row[barcodeHeader] || '').toString().trim()))
 
         if (!filtered.length) { alert('No matching barcodes found in catalog'); setLoading(false); return }
-        exportCSV(filterShopifyCols(filtered), `${r.promo_request_id}_${label.replace(/[^a-zA-Z0-9]/g, '_')}.csv`)
+        const out1 = filterCols ? filterShopifyCols(filtered) : filtered
+        exportCSV(out1, `${r.promo_request_id}_${label.replace(/[^a-zA-Z0-9]/g, '_')}.csv`)
       } else {
         // All SKUs — filter catalog rows by brand
         const brandColIdx = colToIndex(brandCol)
@@ -1109,7 +1112,8 @@ function OnlineBarcodeButton({ row: r, label, sheetId, tabName, barcodeCol, bran
         })
 
         if (!filtered.length) { alert('No barcodes found for this brand in catalog'); setLoading(false); return }
-        exportCSV(filterShopifyCols(filtered), `${r.promo_request_id}_${label.replace(/[^a-zA-Z0-9]/g, '_')}.csv`)
+        const out2 = filterCols ? filterShopifyCols(filtered) : filtered
+        exportCSV(out2, `${r.promo_request_id}_${label.replace(/[^a-zA-Z0-9]/g, '_')}.csv`)
       }
     } catch (e) {
       console.error(e)
