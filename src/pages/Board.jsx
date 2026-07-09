@@ -66,7 +66,16 @@ export default function Board() {
 
   const fetchRows = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('promo_requests').select('*').order('created_at', { ascending: false })
+    const { data } = await supabase.from('promo_requests').select(
+      'id,promo_request_id,brand_names,category,store,poc_name,poc_email,funded_by,offer_type,' +
+      'promotion_name,promo_details,assortment_type,date_ranges,status,current_status,' +
+      'shopify_promo_status,ginesys_promo_id,shopify_discount_id,app_promo_id,' +
+      'campaign_id,funded_by,broadway_pct_split,brand_pct_split,broadway_discount_pct,' +
+      'brand_discount_pct,broadway_discount_both,brand_discount_both,discount_on,' +
+      'sku_file_link,sku_file_name,sku_file_data,rsp_file_link,rsp_file_name,rsp_file_data,' +
+      'approval_email,approval_file_name,picked_by,remark,cloned_from_id,' +
+      'linked_promo_id,is_reversal,date_of_entry,created_at,updated_at'
+    ).order('created_at', { ascending: false })
     setRows(data || [])
     setLoading(false)
   }, [])
