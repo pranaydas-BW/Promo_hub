@@ -31,11 +31,12 @@ export default function TodayPromos() {
   const [campFilter, setCampFilter] = useState('All')
 
   useEffect(() => {
-    load()
-    // Fetch all campaigns for filter options
+    // Fetch campaigns only once on mount
     supabase.from('sale_campaigns').select('*').order('start_date', { ascending: false })
       .then(({ data }) => setCampaigns(data || []))
   }, [])
+
+  useEffect(() => { load() }, [store, campFilter])
 
   const load = async () => {
     setLoading(true)
