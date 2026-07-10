@@ -121,6 +121,7 @@ export default function Analytics() {
       from: r.valid_from,
       till: r.valid_till,
       details: r.promotion_details || r.promotion_name || '',
+      promoName: r.promotion_name || '',
       offerType: r.offer_type || '',
       store: r.store || '',
       status: r.status || '',
@@ -137,6 +138,7 @@ export default function Analytics() {
         from: dr.from,
         till: dr.till,
         details: r.promo_details || r.promotion_name || '',
+        promoName: r.promotion_name || '',
         offerType: r.offer_type || '',
         store: r.store || '',
         status: r.status || '',
@@ -676,6 +678,7 @@ export default function Analytics() {
                       <tr>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">#</th>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Promo ID</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Promo Name</th>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Brand</th>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Category</th>
                         <th className="px-4 py-3 text-left text-[10px] font-mono uppercase tracking-widest text-muted">Start Date</th>
@@ -690,6 +693,7 @@ export default function Analytics() {
                         <tr key={i} className="border-b border-border last:border-0 hover:bg-paper/40">
                           <td className="px-4 py-3 text-muted font-mono text-xs">{i + 1}</td>
                           <td className="px-4 py-3 font-mono text-xs text-muted">{r.promoId || '—'}</td>
+                          <td className="px-4 py-3 text-xs text-ink">{r.promoName || '—'}</td>
                           <td className="px-4 py-3 font-medium text-ink">{r.brand}</td>
                           <td className="px-4 py-3 text-muted text-xs">{r.category}</td>
                           <td className="px-4 py-3 font-mono text-xs text-ink">{fmtDate(r.from)}</td>
