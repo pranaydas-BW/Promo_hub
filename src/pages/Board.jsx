@@ -64,21 +64,50 @@ export default function Board() {
   const [fDateTo, setFDateTo] = useState('')
   const [campaigns, setCampaigns] = useState([])
 
+  const COLS = 'id,promo_request_id,brand_names,category,store,poc_name,funded_by,offer_type,' +
+    'promotion_name,promo_details,assortment_type,date_ranges,status,current_status,' +
+    'shopify_promo_status,ginesys_promo_id,shopify_discount_id,app_promo_id,' +
+    'campaign_id,broadway_pct_split,brand_pct_split,broadway_discount_pct,' +
+    'brand_discount_pct,broadway_discount_both,brand_discount_both,discount_on,' +
+    'sku_file_link,sku_file_name,sku_file_data,rsp_file_link,rsp_file_name,rsp_file_data,' +
+    'reversal_rsp_file_link,reversal_rsp_file_name,reversal_rsp_file_data,' +
+    'approval_email,approval_file_name,picked_by,remark,cloned_from_id,' +
+    'linked_promo_id,is_reversal,date_of_entry,created_at,updated_at'
+
+  const ACTIVE_STATUSES = ['Pending', 'Promo Creation in Progress', 'Promo Created - System', 'Selling Price Updated']
+
   const fetchRows = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('promo_requests').select(
-      'id,promo_request_id,brand_names,category,store,poc_name,funded_by,offer_type,' +
-      'promotion_name,promo_details,assortment_type,date_ranges,status,current_status,' +
-      'shopify_promo_status,ginesys_promo_id,shopify_discount_id,app_promo_id,' +
-      'campaign_id,broadway_pct_split,brand_pct_split,broadway_discount_pct,' +
-      'brand_discount_pct,broadway_discount_both,brand_discount_both,discount_on,' +
-      'sku_file_link,sku_file_name,sku_file_data,rsp_file_link,rsp_file_name,rsp_file_data,' +
-      'reversal_rsp_file_link,reversal_rsp_file_name,reversal_rsp_file_data,' +
-      'approval_email,approval_file_name,picked_by,remark,cloned_from_id,' +
-      'linked_promo_id,is_reversal,date_of_entry,created_at,updated_at'
-    ).order('created_at', { ascending: false })
-    setRows(data || [])
+    const sixtyDaysAgo = new Date()
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+    const cutoff = sixtyDaysAgo.toISOString()
+
+    // Tier 1: active promos within 60 days — show immediately
+    const { data: tier1 } = await supabase.from('promo_requests').select(COLS)
+      .in('status', ACTIVE_STATUSES)
+      .gte('created_at', cutoff)
+      .order('created_at', { ascending: false })
+    setRows(tier1 || [])
     setLoading(false)
+
+    // Tier 2: other statuses within 60 days — merge in background
+    const { data: tier2 } = await supabase.from('promo_requests').select(COLS)
+      .not('status', 'in', `(${ACTIVE_STATUSES.map(s => `"${s}"`).join(',')})`)
+      .gte('created_at', cutoff)
+      .order('created_at', { ascending: false })
+    if (tier2?.length) setRows(prev => {
+      const ids = new Set(prev.map(r => r.id))
+      return [...prev, ...tier2.filter(r => !ids.has(r.id))]
+    })
+
+    // Tier 3: all promos older than 60 days — merge last
+    const { data: tier3 } = await supabase.from('promo_requests').select(COLS)
+      .lt('created_at', cutoff)
+      .order('created_at', { ascending: false })
+    if (tier3?.length) setRows(prev => {
+      const ids = new Set(prev.map(r => r.id))
+      return [...prev, ...tier3.filter(r => !ids.has(r.id))]
+    })
   }, [])
 
   useEffect(() => {
