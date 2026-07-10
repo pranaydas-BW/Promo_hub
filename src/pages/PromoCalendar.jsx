@@ -41,7 +41,7 @@ export default function TodayPromos() {
     setLoading(true)
     const { data } = await supabase
       .from('promo_requests')
-      .select('*')
+      .select('id,promo_request_id,brand_names,category,store,poc_name,funded_by,offer_type,promotion_name,promo_details,assortment_type,date_ranges,status,current_status,ginesys_promo_id,campaign_id,discount_on,sku_file_link,sku_file_name,rsp_file_link,picked_by,picked_at,created_at')
       .order('created_at', { ascending: false })
     // Only show approved promos
     const approved = (data || []).filter(r => 
