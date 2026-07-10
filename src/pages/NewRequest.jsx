@@ -494,7 +494,10 @@ export default function NewRequest() {
               .from('promo-files').getPublicUrl(brandFileName)
             brandFileLink = publicUrl
           }
-        } catch (e) { console.error('Brand file upload error', e) }
+        } catch (e) {
+          console.error('Brand file upload error', e)
+          setError(`SKU file upload failed for ${bg.brand} — please re-upload from the board after saving.`)
+        }
 
         const brandPayload = {
           ...basePayload,
