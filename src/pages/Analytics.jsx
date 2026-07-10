@@ -305,6 +305,7 @@ export default function Analytics() {
     .filter(r => r.from && r.till && r.from <= selectedDay && r.till >= selectedDay)
     .map(r => ({
       promoId: r.promoId || '',
+      promoName: r.promoName || '',
       brand: r.brand,
       category: r.category,
       from: r.from,
