@@ -206,36 +206,39 @@ export default function Board() {
           </button>
           <button
             onClick={() => {
-              const toExport = activeRows.map(r => ({
-                promo_request_id: r.promo_request_id || '',
-                date_of_entry: r.date_of_entry || '',
-                brand_names: r.brand_names || '',
-                category: r.category || '',
-                store: r.store || '',
-                poc_name: r.poc_name || '',
-                funded_by: r.funded_by || '',
-                offer_type: r.offer_type || '',
-                promotion_name: r.promotion_name || '',
-                promo_details: r.promo_details || '',
-                assortment_type: r.assortment_type || '',
-                broadway_discount_pct: r.broadway_discount_pct || r.broadway_discount_both || '',
-                brand_discount_pct: r.brand_discount_pct || r.brand_discount_both || '',
-                valid_from: Array.isArray(r.date_ranges) && r.date_ranges[0] ? r.date_ranges[0].from : '',
-                valid_till: Array.isArray(r.date_ranges) && r.date_ranges[0] ? r.date_ranges[0].till : '',
-                all_date_ranges: JSON.stringify(r.date_ranges),
-                status: r.status || '',
-                current_status: r.current_status || '',
-                shopify_promo_status: r.shopify_promo_status || '',
-                ginesys_promo_id: r.ginesys_promo_id || '',
-                app_promo_id: r.app_promo_id || '',
-                shopify_discount_id: r.shopify_discount_id || '',
-                discount_on: r.discount_on || '',
-                picked_by: r.picked_by || '',
-                remark: r.remark || '',
-                sku_file_url: r.sku_file_link || '',
-                rsp_file_url: r.rsp_file_link || '',
-                approval_url: r.approval_email || '',
-              }))
+              const toExport = activeRows.flatMap(r => {
+                const ranges = Array.isArray(r.date_ranges) && r.date_ranges.length > 0
+                  ? r.date_ranges : [{ from: '', till: '' }]
+                return ranges.map(dr => ({
+                  promo_request_id: r.promo_request_id || '',
+                  date_of_entry: r.date_of_entry || '',
+                  brand_names: r.brand_names || '',
+                  category: r.category || '',
+                  store: r.store || '',
+                  poc_name: r.poc_name || '',
+                  funded_by: r.funded_by || '',
+                  offer_type: r.offer_type || '',
+                  promotion_name: r.promotion_name || '',
+                  promo_details: r.promo_details || '',
+                  assortment_type: r.assortment_type || '',
+                  broadway_discount_pct: r.broadway_discount_pct || r.broadway_discount_both || '',
+                  brand_discount_pct: r.brand_discount_pct || r.brand_discount_both || '',
+                  valid_from: dr.from || '',
+                  valid_till: dr.till || '',
+                  status: r.status || '',
+                  current_status: r.current_status || '',
+                  shopify_promo_status: r.shopify_promo_status || '',
+                  ginesys_promo_id: r.ginesys_promo_id || '',
+                  app_promo_id: r.app_promo_id || '',
+                  shopify_discount_id: r.shopify_discount_id || '',
+                  discount_on: r.discount_on || '',
+                  picked_by: r.picked_by || '',
+                  remark: r.remark || '',
+                  sku_file_url: r.sku_file_link || '',
+                  rsp_file_url: r.rsp_file_link || '',
+                  approval_url: r.approval_email || '',
+                }))
+              })
               exportCSV(toExport, `promo-board-export-${new Date().toISOString().split('T')[0]}.csv`)
             }}
             disabled={!filtered.length}
