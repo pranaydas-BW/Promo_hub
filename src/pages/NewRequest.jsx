@@ -434,7 +434,7 @@ export default function NewRequest() {
     if (!form.approval_email) {
       setError('Please upload the brand approval screenshot.'); setLoading(false); return
     }
-    if (isPromo && form.assortment_type === 'Selected SKUs' && !form.sku_file_name) {
+    if (isPromo && form.assortment_type === 'Selected SKUs' && (!form.sku_file_name || !form.sku_file_link)) {
       setError('Please upload the SKU file — required for Selected SKUs.'); setLoading(false); return
     }
     if (isRSP && !form.rsp_file_name) {
