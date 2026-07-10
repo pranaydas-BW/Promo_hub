@@ -206,7 +206,7 @@ export default function Board() {
           </button>
           <button
             onClick={() => {
-              const toExport = filtered.map(r => ({
+              const toExport = activeRows.map(r => ({
                 promo_request_id: r.promo_request_id || '',
                 date_of_entry: r.date_of_entry || '',
                 brand_names: r.brand_names || '',
