@@ -371,7 +371,9 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
   const pickedByMe = r.picked_by === currentUserEmail
   const [photoUploading, setPhotoUploading] = useState(false)
   const today = new Date().toISOString().split('T')[0]
+  const hasPhoto = !!r.store_photo_url
   const hasPhotoToday = r.store_photo_url && r.store_photo_date === today
+  const photoLabel = hasPhotoToday ? 'Replace' : hasPhoto ? 'Update photo' : 'Take photo'
 
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0]
@@ -458,23 +460,19 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
             )}
           </span>
           {/* Photo upload */}
-          {hasPhotoToday ? (
+          {hasPhoto && (
             <div className="flex flex-col items-end gap-1">
-              <a href={r.store_photo_url} target="_blank" rel="noreferrer">
+              <a href={r.store_photo_url} target="_blank" rel="noreferrer" title={`Captured: ${r.store_photo_date ? fmtDate(r.store_photo_date) : ''}`}>
                 <img src={r.store_photo_url} alt="Store photo" className="h-14 w-14 object-cover rounded-lg border border-border" />
               </a>
-              <label className="text-[10px] text-accent hover:underline cursor-pointer font-body">
-                Replace
-                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
-              </label>
+              <span className="text-[9px] text-muted font-mono">{r.store_photo_date ? fmtDate(r.store_photo_date) : ''}</span>
             </div>
-          ) : (
-            <label className={`flex items-center gap-1 text-[10px] font-body cursor-pointer px-2 py-1 rounded-lg border border-border bg-white hover:bg-paper transition-colors ${photoUploading ? 'opacity-50 text-muted' : 'text-muted hover:text-ink'}`}>
-              {photoUploading ? <Loader2 size={9} className="animate-spin" /> : '📷'}
-              {photoUploading ? 'Uploading…' : 'Take photo'}
-              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
-            </label>
           )}
+          <label className={`flex items-center gap-1 text-[10px] font-body cursor-pointer px-2 py-1 rounded-lg border border-border bg-white hover:bg-paper transition-colors ${photoUploading ? 'opacity-50 text-muted' : 'text-muted hover:text-ink'}`}>
+            {photoUploading ? <Loader2 size={9} className="animate-spin" /> : '📷'}
+            {photoUploading ? 'Uploading…' : photoLabel}
+            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
+          </label>
         </div>
       </div>
 
