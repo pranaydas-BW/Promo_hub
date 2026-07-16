@@ -207,7 +207,7 @@ export default function TodayPromos() {
             <select
               value={liveCategory}
               onChange={e => setLiveCategory(e.target.value)}
-              className="text-xs font-body px-3 py-1.5 rounded-lg border border-border bg-white focus:outline-none">
+              className="text-sm font-body px-3 py-2 rounded-xl border border-border bg-white focus:outline-none">
               {liveCategories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
             <input
@@ -215,7 +215,7 @@ export default function TodayPromos() {
               placeholder="Search brand..."
               value={liveBrand}
               onChange={e => setLiveBrand(e.target.value)}
-              className="text-xs font-body px-3 py-1.5 rounded-lg border border-border bg-white focus:outline-none w-48"
+              className="text-sm font-body px-3 py-2 rounded-xl border border-border bg-white focus:outline-none flex-1 min-w-0"
             />
             {(liveCategory !== 'All' || liveBrand) && (
               <button onClick={() => { setLiveCategory('All'); setLiveBrand('') }}
@@ -418,7 +418,7 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
         : ''
     }`}>
       {/* Top row */}
-      <div className="flex items-start justify-between gap-2 mb-2">
+      <div className="flex items-start justify-between gap-2 mb-2 flex-wrap sm:flex-nowrap">
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="font-mono text-[11px] text-muted">{r.promo_request_id}</span>
           {isNewPromo && !isPicked && (
@@ -440,7 +440,7 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
         <div className="flex flex-col items-end gap-1.5 shrink-0">
           <button
             onClick={handlePickClick}
-            className={`flex items-center gap-1 text-[11px] font-body px-2.5 py-1 rounded-lg border transition-colors ${
+            className={`flex items-center gap-1.5 text-xs font-body px-3 py-2 rounded-xl border transition-colors min-w-[110px] justify-center ${
               isPicked
                 ? 'bg-emerald-50 text-success border-emerald-200 font-medium'
                 : 'bg-white text-muted border-border hover:border-ink hover:text-ink'
@@ -468,8 +468,8 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
               <span className="text-[9px] text-muted font-mono">{r.store_photo_date ? fmtDate(r.store_photo_date) : ''}</span>
             </div>
           )}
-          <label className={`flex items-center gap-1 text-[10px] font-body cursor-pointer px-2 py-1 rounded-lg border border-border bg-white hover:bg-paper transition-colors ${photoUploading ? 'opacity-50 text-muted' : 'text-muted hover:text-ink'}`}>
-            {photoUploading ? <Loader2 size={9} className="animate-spin" /> : '📷'}
+          <label className={`flex items-center gap-1.5 text-xs font-body cursor-pointer px-3 py-2 rounded-xl border border-border bg-white hover:bg-paper transition-colors ${photoUploading ? 'opacity-50 text-muted' : 'text-muted hover:text-ink'}`}>
+            {photoUploading ? <Loader2 size={10} className="animate-spin" /> : '📷'}
             {photoUploading ? 'Uploading…' : photoLabel}
             <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
           </label>
@@ -477,8 +477,8 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
       </div>
 
       {/* Brand + identity */}
-      <p className="font-display font-bold text-sm text-ink">{r.brand_names}</p>
-      <p className="text-[11px] text-muted mt-0.5">
+      <p className="font-display font-bold text-base text-ink">{r.brand_names}</p>
+      <p className="text-xs text-muted mt-0.5">
         {r.category}{r.store ? ` · ${r.store}` : ''} · POC: {r.poc_name}
       </p>
 
