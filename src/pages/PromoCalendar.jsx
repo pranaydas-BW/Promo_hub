@@ -28,6 +28,7 @@ export default function TodayPromos() {
   const tomorrow = addDays(today, 1)
 
   const [campaigns, setCampaigns] = useState([])
+  const [calTab, setCalTab] = useState('today')
   const [campFilter, setCampFilter] = useState('All')
 
   useEffect(() => {
@@ -68,10 +69,12 @@ export default function TodayPromos() {
 
   const filtered = rows.filter(r => matchStore(r) && matchCampaign(r))
 
-  const startingToday    = filtered.filter(r => matchDate(r, 'from', today))
-  const endingToday      = filtered.filter(r => matchDate(r, 'till', today))
-  const startingTomorrow = filtered.filter(r => matchDate(r, 'from', tomorrow))
-  const endingTomorrow   = filtered.filter(r => matchDate(r, 'till', tomorrow))
+  const isOffline = r => (r.store || '') !== 'Online'
+  const startingToday    = filtered.filter(r => matchDate(r, 'from', today) && isOffline(r))
+  const endingToday      = filtered.filter(r => matchDate(r, 'till', today) && isOffline(r))
+  const startingTomorrow = filtered.filter(r => matchDate(r, 'from', tomorrow) && isOffline(r))
+  const endingTomorrow   = filtered.filter(r => matchDate(r, 'till', tomorrow) && isOffline(r))
+  const liveToday        = filtered.filter(r => isOffline(r) && r.from && r.till && r.from <= today && r.till >= today)
 
   const handlePick = async (row) => {
     const alreadyPicked = !!row.picked_by
@@ -162,10 +165,39 @@ export default function TodayPromos() {
         </div>
       )}
 
+      {/* Tab switcher */}
+      <div className="flex gap-2 mb-4">
+        <button onClick={() => setCalTab('today')}
+          className={`px-4 py-1.5 rounded-lg text-xs font-body border transition-colors ${calTab === 'today' ? 'bg-ink text-white border-ink' : 'bg-white text-muted border-border hover:text-ink'}`}>
+          Starting / Ending
+        </button>
+        <button onClick={() => setCalTab('live')}
+          className={`px-4 py-1.5 rounded-lg text-xs font-body border transition-colors ${calTab === 'live' ? 'bg-ink text-white border-ink' : 'bg-white text-muted border-border hover:text-ink'}`}>
+          Live Today ({liveToday.length})
+        </button>
+      </div>
+
       {loading ? (
         <div className="flex justify-center items-center h-48 gap-2 text-muted">
           <Loader2 size={18} className="animate-spin" />
           <span className="text-sm">Loading…</span>
+        </div>
+      ) : calTab === 'live' ? (
+        <div>
+          <PromoGroup
+            campaigns={campaigns}
+            title="Live Today (Offline)"
+            icon={<CalendarCheck size={15} className="text-accent" />}
+            color="text-accent"
+            bg="bg-violet-50"
+            border="border-violet-200"
+            rows={liveToday}
+            event="starting"
+            matchDate={today}
+            onExport={() => exportCSV(toExport(liveToday), `live-today-${today}.csv`)}
+            onPick={handlePick}
+            currentUserEmail={user?.email}
+          />
         </div>
       ) : (
         <div className="space-y-8">

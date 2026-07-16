@@ -72,7 +72,7 @@ export default function Board() {
     'sku_file_link,sku_file_name,sku_file_data,rsp_file_link,rsp_file_name,rsp_file_data,' +
     'reversal_rsp_file_link,reversal_rsp_file_name,reversal_rsp_file_data,' +
     'approval_email,approval_file_name,picked_by,remark,cloned_from_id,' +
-    'linked_promo_id,is_reversal,date_of_entry,created_at,updated_at'
+    'linked_promo_id,is_reversal,date_of_entry,post_creation_check,created_at,updated_at'
 
   const ACTIVE_STATUSES = ['Pending', 'Promo Creation in Progress', 'Promo Created - System', 'Selling Price Updated']
 
@@ -234,6 +234,7 @@ export default function Board() {
                   discount_on: r.discount_on || '',
                   picked_by: r.picked_by || '',
                   remark: r.remark || '',
+                  post_creation_check: r.post_creation_check || 'Not Checked',
                   sku_file_url: r.sku_file_link || '',
                   rsp_file_url: r.rsp_file_link || '',
                   approval_url: r.approval_email || '',
@@ -744,6 +745,34 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
             </div>
           )}
 
+          {/* Post-creation check — visible to all, editable by admin */}
+          <div className="flex items-center gap-3 px-1 py-2">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-muted">Post-Creation Check</span>
+            {isAdmin ? (
+              <select
+                value={r.post_creation_check || 'Not Checked'}
+                onChange={async e => {
+                  await onPatch(r.id, { post_creation_check: e.target.value })
+                }}
+                className={`text-xs font-body px-2 py-1 rounded-lg border focus:outline-none ${
+                  r.post_creation_check === 'Checked' ? 'bg-green-50 border-green-200 text-green-700' :
+                  r.post_creation_check === 'Issues Found' ? 'bg-red-50 border-red-200 text-red-700' :
+                  'bg-paper border-border text-muted'
+                }`}>
+                <option value="Not Checked">Not Checked</option>
+                <option value="Checked">Checked ✓</option>
+                <option value="Issues Found">Issues Found</option>
+              </select>
+            ) : (
+              <span className={`text-xs font-body px-2 py-1 rounded-lg border ${
+                r.post_creation_check === 'Checked' ? 'bg-green-50 border-green-200 text-green-700' :
+                r.post_creation_check === 'Issues Found' ? 'bg-red-50 border-red-200 text-red-700' :
+                'bg-paper border-border text-muted'
+              }`}>
+                {r.post_creation_check || 'Not Checked'}
+              </span>
+            )}
+          </div>
           {isAdmin && (
             <EditPanel row={r} onPatch={onPatch} isAdmin={isAdmin} userEmail={userEmail} />
           )}
