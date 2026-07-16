@@ -72,7 +72,7 @@ export default function Board() {
     'sku_file_link,sku_file_name,sku_file_data,rsp_file_link,rsp_file_name,rsp_file_data,' +
     'reversal_rsp_file_link,reversal_rsp_file_name,reversal_rsp_file_data,' +
     'approval_email,approval_file_name,picked_by,remark,cloned_from_id,' +
-    'linked_promo_id,is_reversal,date_of_entry,post_creation_check,created_at,updated_at'
+    'linked_promo_id,is_reversal,date_of_entry,post_creation_check,post_creation_check_by,post_creation_check_at,status_updated_by,status_updated_at,created_at,updated_at'
 
   const ACTIVE_STATUSES = ['Pending', 'Promo Creation in Progress', 'Promo Created - System', 'Selling Price Updated']
 
@@ -235,6 +235,10 @@ export default function Board() {
                   picked_by: r.picked_by || '',
                   remark: r.remark || '',
                   post_creation_check: r.post_creation_check || 'Not Checked',
+                  post_creation_check_by: r.post_creation_check_by || '',
+                  post_creation_check_at: r.post_creation_check_at || '',
+                  status_updated_by: r.status_updated_by || '',
+                  status_updated_at: r.status_updated_at || '',
                   sku_file_url: r.sku_file_link || '',
                   rsp_file_url: r.rsp_file_link || '',
                   approval_url: r.approval_email || '',
@@ -589,6 +593,7 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
               ['Promotion Name', r.promotion_name],
               ['Type of Offer', r.offer_type],
               ['Live Status', effectiveCurrentStatus],
+              ['Status Updated By', r.status_updated_by ? `${r.status_updated_by.split('@')[0]} · ${r.status_updated_at ? new Date(r.status_updated_at).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'2-digit' }) : ''}` : null],
               ['Funded By', r.funded_by],
               ['Assortment Type', r.assortment_type],
               ['Store', r.store],
@@ -752,7 +757,11 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
               <select
                 value={r.post_creation_check || 'Not Checked'}
                 onChange={async e => {
-                  await onPatch(r.id, { post_creation_check: e.target.value })
+                  await onPatch(r.id, {
+                    post_creation_check: e.target.value,
+                    post_creation_check_by: user.email,
+                    post_creation_check_at: new Date().toISOString(),
+                  })
                 }}
                 className={`text-xs font-body px-2 py-1 rounded-lg border focus:outline-none ${
                   r.post_creation_check === 'Checked' ? 'bg-green-50 border-green-200 text-green-700' :
@@ -772,12 +781,17 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
                 {r.post_creation_check || 'Not Checked'}
               </span>
             )}
+            {r.post_creation_check_by && (
+              <span className="text-[10px] text-muted font-body">
+                by {r.post_creation_check_by.split('@')[0]} · {r.post_creation_check_at ? new Date(r.post_creation_check_at).toLocaleDateString('en-IN', { day:'numeric', month:'short' }) : ''}
+              </span>
+            )}
           </div>
           {isAdmin && (
             <EditPanel row={r} onPatch={onPatch} isAdmin={isAdmin} userEmail={userEmail} />
           )}
           {isAdmin && (
-            <StatusPanel row={r} onPatch={onPatch} updating={updating} allRows={allRows} />
+            <StatusPanel row={r} onPatch={onPatch} updating={updating} allRows={allRows} userEmail={userEmail} />
           )}
 
         </div>

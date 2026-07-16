@@ -4,7 +4,7 @@ import {
   STATUS_OPTIONS, CURRENT_STATUS_OPTIONS, SHOPIFY_STATUS_OPTIONS,
 } from '../lib/constants.jsx'
 
-export function StatusPanel({ row: r, onPatch, updating, allRows }) {
+export function StatusPanel({ row: r, onPatch, updating, allRows, userEmail }) {
   const [draft, setDraft] = useState({
     status: r.status || '',
     current_status: r.current_status || '',
@@ -53,7 +53,11 @@ export function StatusPanel({ row: r, onPatch, updating, allRows }) {
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
     setErrors({})
-    await onPatch(r.id, draft)
+    await onPatch(r.id, {
+      ...draft,
+      status_updated_by: userEmail || '',
+      status_updated_at: new Date().toISOString(),
+    })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
