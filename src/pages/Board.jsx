@@ -110,6 +110,14 @@ export default function Board() {
     })
   }, [])
 
+  // Auto-refresh every 5 minutes, skip if a card is expanded
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!expandedId) fetchRows()
+    }, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [expandedId, fetchRows])
+
   useEffect(() => {
     fetchRows()
     supabase.from('sale_campaigns').select('*').order('start_date', { ascending: false })
