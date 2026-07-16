@@ -418,8 +418,8 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
         : ''
     }`}>
       {/* Top row */}
-      <div className="flex items-start justify-between gap-2 mb-2 flex-wrap sm:flex-nowrap">
-        <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
           <span className="font-mono text-[11px] text-muted">{r.promo_request_id}</span>
           {isNewPromo && !isPicked && (
             <span className="text-[10px] font-mono font-bold bg-accent text-white px-1.5 py-0.5 rounded-full animate-pulse">NEW</span>
