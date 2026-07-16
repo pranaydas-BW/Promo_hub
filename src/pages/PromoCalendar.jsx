@@ -74,7 +74,7 @@ export default function TodayPromos() {
   const endingToday      = filtered.filter(r => matchDate(r, 'till', today) && isOffline(r))
   const startingTomorrow = filtered.filter(r => matchDate(r, 'from', tomorrow) && isOffline(r))
   const endingTomorrow   = filtered.filter(r => matchDate(r, 'till', tomorrow) && isOffline(r))
-  const liveToday        = filtered.filter(r => isOffline(r) && r.from && r.till && r.from <= today && r.till >= today)
+  const liveToday        = filtered.filter(r => isOffline(r) && Array.isArray(r.date_ranges) && r.date_ranges.some(dr => dr.from <= today && dr.till >= today))
 
   const handlePick = async (row) => {
     const alreadyPicked = !!row.picked_by
