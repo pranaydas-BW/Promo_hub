@@ -434,18 +434,48 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
           })()}
         </div>
 
-        {/* Pick button — shows ✓ Picked or just ○ */}
-        <button
-          onClick={handlePickClick}
-          className={`flex items-center gap-1 text-[11px] font-body px-2.5 py-1 rounded-lg border transition-colors shrink-0 ${
-            isPicked
-              ? 'bg-emerald-50 text-success border-emerald-200 font-medium'
-              : 'bg-white text-muted border-border hover:border-ink hover:text-ink'
-          }`}
-          title={isPicked ? `Picked by ${r.picked_by} — click to unmark` : 'Mark as picked'}
-        >
-          {isPicked ? '✓ Picked' : '○ Mark as Picked'}
-        </button>
+        {/* Pick button + last picked + photo upload */}
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <button
+            onClick={handlePickClick}
+            className={`flex items-center gap-1 text-[11px] font-body px-2.5 py-1 rounded-lg border transition-colors ${
+              isPicked
+                ? 'bg-emerald-50 text-success border-emerald-200 font-medium'
+                : 'bg-white text-muted border-border hover:border-ink hover:text-ink'
+            }`}
+            title={isPicked ? `Picked by ${r.picked_by} — click to unmark` : 'Mark as picked'}
+          >
+            {isPicked ? '✓ Picked' : '○ Mark as Picked'}
+          </button>
+          <span className="text-[10px] font-body text-right">
+            {isPicked ? (
+              <span className="text-success">
+                {r.picked_at && new Date(r.picked_at).toISOString().split('T')[0] === today ? 'Picked today' : `Last: ${fmtDate(r.picked_at?.split('T')[0])}`}
+                {' · '}{r.picked_by?.split('@')[0]}
+              </span>
+            ) : (
+              <span className="text-muted">Last picked: never</span>
+            )}
+          </span>
+          {/* Photo upload */}
+          {hasPhotoToday ? (
+            <div className="flex flex-col items-end gap-1">
+              <a href={r.store_photo_url} target="_blank" rel="noreferrer">
+                <img src={r.store_photo_url} alt="Store photo" className="h-14 w-14 object-cover rounded-lg border border-border" />
+              </a>
+              <label className="text-[10px] text-accent hover:underline cursor-pointer font-body">
+                Replace
+                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
+              </label>
+            </div>
+          ) : (
+            <label className={`flex items-center gap-1 text-[10px] font-body cursor-pointer px-2 py-1 rounded-lg border border-border bg-white hover:bg-paper transition-colors ${photoUploading ? 'opacity-50 text-muted' : 'text-muted hover:text-ink'}`}>
+              {photoUploading ? <Loader2 size={9} className="animate-spin" /> : '📷'}
+              {photoUploading ? 'Uploading…' : 'Take photo'}
+              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
+            </label>
+          )}
+        </div>
       </div>
 
       {/* Brand + identity */}
@@ -468,38 +498,9 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
         </p>
       ))}
 
-      {/* Picked by info */}
-      <p className="text-[11px] mt-1.5">
-        {isPicked ? (
-          <span className="text-success">
-            ✓ {r.picked_at && new Date(r.picked_at).toISOString().split('T')[0] === today ? 'Picked today' : `Last picked: ${fmtDate(r.picked_at?.split('T')[0])}`}
-            {' · '}<span className="font-medium">{r.picked_by?.split('@')[0]}</span>
-          </span>
-        ) : (
-          <span className="text-muted">Last picked: never</span>
-        )}
-      </p>
 
-      {/* Photo upload */}
-      <div className="mt-2 pt-2 border-t border-border/50">
-        {hasPhotoToday ? (
-          <div className="flex items-center gap-2">
-            <a href={r.store_photo_url} target="_blank" rel="noreferrer">
-              <img src={r.store_photo_url} alt="Store photo" className="h-16 w-16 object-cover rounded-lg border border-border" />
-            </a>
-            <label className="text-[11px] text-accent hover:underline cursor-pointer font-body">
-              Replace photo
-              <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
-            </label>
-          </div>
-        ) : (
-          <label className={`flex items-center gap-1.5 text-[11px] font-body cursor-pointer w-fit px-2.5 py-1 rounded-lg border border-border bg-white hover:bg-paper transition-colors ${photoUploading ? 'opacity-50' : 'text-muted hover:text-ink'}`}>
-            {photoUploading ? <Loader2 size={10} className="animate-spin" /> : '📷'}
-            {photoUploading ? 'Uploading…' : 'Upload photo'}
-            <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
-          </label>
-        )}
-      </div>
+
+
 
       {/* Footer details */}
       <div className="flex flex-wrap items-center gap-3 mt-2 pt-2 border-t border-border/50 text-[11px] text-muted">
