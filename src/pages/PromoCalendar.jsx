@@ -29,6 +29,8 @@ export default function TodayPromos() {
 
   const [campaigns, setCampaigns] = useState([])
   const [calTab, setCalTab] = useState('today')
+  const [liveCategory, setLiveCategory] = useState('All')
+  const [liveBrand, setLiveBrand] = useState('')
   const [campFilter, setCampFilter] = useState('All')
 
   useEffect(() => {
@@ -49,7 +51,7 @@ export default function TodayPromos() {
     setLoading(true)
     const { data } = await supabase
       .from('promo_requests')
-      .select('id,promo_request_id,brand_names,category,store,poc_name,funded_by,offer_type,promotion_name,promo_details,assortment_type,date_ranges,status,current_status,ginesys_promo_id,campaign_id,discount_on,sku_file_link,sku_file_name,rsp_file_link,picked_by,picked_at,created_at')
+      .select('id,promo_request_id,brand_names,category,store,poc_name,funded_by,offer_type,promotion_name,promo_details,assortment_type,date_ranges,status,current_status,ginesys_promo_id,shopify_discount_id,approval_email,campaign_id,discount_on,sku_file_link,sku_file_name,rsp_file_link,picked_by,picked_at,store_photo_url,store_photo_date,created_at')
       .order('created_at', { ascending: false })
     // Only show approved promos
     const approved = (data || []).filter(r => 
@@ -81,6 +83,16 @@ export default function TodayPromos() {
   const startingTomorrow = filtered.filter(r => matchDate(r, 'from', tomorrow) && isOffline(r))
   const endingTomorrow   = filtered.filter(r => matchDate(r, 'till', tomorrow) && isOffline(r))
   const liveToday        = filtered.filter(r => isOffline(r) && Array.isArray(r.date_ranges) && r.date_ranges.some(dr => dr.from <= today && dr.till >= today))
+  const liveTodayFiltered = liveToday.filter(r => {
+    const matchCat = liveCategory === 'All' || r.category === liveCategory
+    const matchBrand = !liveBrand || (r.brand_names || '').toLowerCase().includes(liveBrand.toLowerCase())
+    return matchCat && matchBrand
+  })
+  const liveCategories = ['All', ...new Set(liveToday.map(r => r.category).filter(Boolean).sort())]
+
+  const handlePhotoUpdate = (id, url, date) => {
+    setRows(prev => prev.map(r => r.id === id ? { ...r, store_photo_url: url, store_photo_date: date } : r))
+  }
 
   const handlePick = async (row) => {
     const alreadyPicked = !!row.picked_by
@@ -189,7 +201,30 @@ export default function TodayPromos() {
           <span className="text-sm">Loading…</span>
         </div>
       ) : calTab === 'live' ? (
-        <div>
+        <div className="space-y-4">
+          {/* Filters */}
+          <div className="flex flex-wrap gap-3 items-center">
+            <select
+              value={liveCategory}
+              onChange={e => setLiveCategory(e.target.value)}
+              className="text-xs font-body px-3 py-1.5 rounded-lg border border-border bg-white focus:outline-none">
+              {liveCategories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <input
+              type="text"
+              placeholder="Search brand..."
+              value={liveBrand}
+              onChange={e => setLiveBrand(e.target.value)}
+              className="text-xs font-body px-3 py-1.5 rounded-lg border border-border bg-white focus:outline-none w-48"
+            />
+            {(liveCategory !== 'All' || liveBrand) && (
+              <button onClick={() => { setLiveCategory('All'); setLiveBrand('') }}
+                className="text-xs text-muted hover:text-ink font-body">
+                Clear
+              </button>
+            )}
+            <span className="text-xs text-muted font-body">{liveTodayFiltered.length} promos</span>
+          </div>
           <PromoGroup
             campaigns={campaigns}
             title="Live Today (Offline)"
@@ -197,12 +232,13 @@ export default function TodayPromos() {
             color="text-accent"
             bg="bg-violet-50"
             border="border-violet-200"
-            rows={liveToday}
-            event="starting"
+            rows={liveTodayFiltered}
+            event="live"
             matchDate={today}
-            onExport={() => exportCSV(toExport(liveToday), `live-today-${today}.csv`)}
+            onExport={() => exportCSV(toExport(liveTodayFiltered), `live-today-${today}.csv`)}
             onPick={handlePick}
             currentUserEmail={user?.email}
+            onPhotoUpdate={handlePhotoUpdate}
           />
         </div>
       ) : (
@@ -284,7 +320,7 @@ campaigns={campaigns}                 title="Ending Tomorrow"
   )
 }
 
-function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, onExport, onPick, currentUserEmail, campaigns = [] }) {
+function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, onExport, onPick, currentUserEmail, campaigns = [], onPhotoUpdate }) {
   return (
     <div className="bg-white border border-border rounded-xl overflow-hidden">
       {/* Group header */}
@@ -319,6 +355,8 @@ function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, on
               border={border}
               onPick={onPick}
               currentUserEmail={currentUserEmail}
+              campaigns={campaigns}
+              onPhotoUpdate={onPhotoUpdate}
             />
           ))}
         </div>
@@ -327,10 +365,31 @@ function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, on
   )
 }
 
-function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, campaigns = [] }) {
+function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, campaigns = [], onPhotoUpdate }) {
   const isPicked = !!r.picked_by
   const isNewPromo = isNew(r)
   const pickedByMe = r.picked_by === currentUserEmail
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const today = new Date().toISOString().split('T')[0]
+  const hasPhotoToday = r.store_photo_url && r.store_photo_date === today
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setPhotoUploading(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `store-photos/${today}_${r.promo_request_id}.${ext}`
+      const { error } = await supabase.storage.from('promo-files').upload(path, file, { upsert: true })
+      if (error) throw error
+      const { data: { publicUrl } } = supabase.storage.from('promo-files').getPublicUrl(path)
+      await supabase.from('promo_requests').update({ store_photo_url: publicUrl, store_photo_date: today }).eq('id', r.id)
+      if (onPhotoUpdate) onPhotoUpdate(r.id, publicUrl, today)
+    } catch (err) {
+      alert('Photo upload failed: ' + err.message)
+    }
+    setPhotoUploading(false)
+  }
 
   const relevantRanges = (r.date_ranges || []).filter(dr =>
     event === 'starting' ? dr.from === matchDate : dr.till === matchDate
@@ -410,12 +469,37 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
       ))}
 
       {/* Picked by info */}
-      {isPicked && (
-        <p className="text-[11px] text-success mt-1.5">
-          ✓ Picked by <span className="font-medium">{r.picked_by?.split('@')[0]}</span>
-          {r.picked_at && ` at ${new Date(r.picked_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`}
-        </p>
-      )}
+      <p className="text-[11px] mt-1.5">
+        {isPicked ? (
+          <span className="text-success">
+            ✓ {r.picked_at && new Date(r.picked_at).toISOString().split('T')[0] === today ? 'Picked today' : `Last picked: ${fmtDate(r.picked_at?.split('T')[0])}`}
+            {' · '}<span className="font-medium">{r.picked_by?.split('@')[0]}</span>
+          </span>
+        ) : (
+          <span className="text-muted">Last picked: never</span>
+        )}
+      </p>
+
+      {/* Photo upload */}
+      <div className="mt-2 pt-2 border-t border-border/50">
+        {hasPhotoToday ? (
+          <div className="flex items-center gap-2">
+            <a href={r.store_photo_url} target="_blank" rel="noreferrer">
+              <img src={r.store_photo_url} alt="Store photo" className="h-16 w-16 object-cover rounded-lg border border-border" />
+            </a>
+            <label className="text-[11px] text-accent hover:underline cursor-pointer font-body">
+              Replace photo
+              <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
+            </label>
+          </div>
+        ) : (
+          <label className={`flex items-center gap-1.5 text-[11px] font-body cursor-pointer w-fit px-2.5 py-1 rounded-lg border border-border bg-white hover:bg-paper transition-colors ${photoUploading ? 'opacity-50' : 'text-muted hover:text-ink'}`}>
+            {photoUploading ? <Loader2 size={10} className="animate-spin" /> : '📷'}
+            {photoUploading ? 'Uploading…' : 'Upload photo'}
+            <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
+          </label>
+        )}
+      </div>
 
       {/* Footer details */}
       <div className="flex flex-wrap items-center gap-3 mt-2 pt-2 border-t border-border/50 text-[11px] text-muted">
