@@ -436,44 +436,44 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
           })()}
         </div>
 
-        {/* Pick button + last picked + photo upload */}
-        <div className="flex flex-col items-end gap-1.5 shrink-0">
-          <button
-            onClick={handlePickClick}
-            className={`flex items-center gap-1.5 text-xs font-body px-3 py-2 rounded-xl border transition-colors min-w-[110px] justify-center ${
-              isPicked
-                ? 'bg-emerald-50 text-success border-emerald-200 font-medium'
-                : 'bg-white text-muted border-border hover:border-ink hover:text-ink'
-            }`}
-            title={isPicked ? `Picked by ${r.picked_by} — click to unmark` : 'Mark as picked'}
-          >
-            {isPicked ? '✓ Picked' : '○ Mark as Picked'}
-          </button>
-          <span className="text-[10px] font-body text-right">
-            {isPicked ? (
-              <span className="text-success">
-                {r.picked_at && new Date(r.picked_at).toISOString().split('T')[0] === today ? 'Picked today' : `Last: ${fmtDate(r.picked_at?.split('T')[0])}`}
-                {' · '}{r.picked_by?.split('@')[0]}
-              </span>
-            ) : (
-              <span className="text-muted">Last picked: never</span>
-            )}
-          </span>
-          {/* Photo upload */}
-          {hasPhoto && (
-            <div className="flex flex-col items-end gap-1">
-              <a href={r.store_photo_url} target="_blank" rel="noreferrer" title={`Captured: ${r.store_photo_date ? fmtDate(r.store_photo_date) : ''}`}>
-                <img src={r.store_photo_url} alt="Store photo" className="h-14 w-14 object-cover rounded-lg border border-border" />
-              </a>
-              <span className="text-[9px] text-muted font-mono">{r.store_photo_date ? fmtDate(r.store_photo_date) : ''}</span>
-            </div>
-          )}
-          <label className={`flex items-center gap-1.5 text-xs font-body cursor-pointer px-3 py-2 rounded-xl border border-border bg-white hover:bg-paper transition-colors ${photoUploading ? 'opacity-50 text-muted' : 'text-muted hover:text-ink'}`}>
-            {photoUploading ? <Loader2 size={10} className="animate-spin" /> : '📷'}
-            {photoUploading ? 'Uploading…' : photoLabel}
-            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
-          </label>
-        </div>
+        {/* placeholder — action row moved below */}
+        <div />
+      </div>
+
+      {/* Action row — pick + photo */}
+      <div className="flex gap-2 mb-2">
+        <button
+          onClick={handlePickClick}
+          className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-body px-3 py-2.5 rounded-xl border transition-colors ${
+            isPicked
+              ? 'bg-emerald-50 text-success border-emerald-200 font-medium'
+              : 'bg-white text-muted border-border hover:border-ink hover:text-ink'
+          }`}>
+          {isPicked ? '✓ Picked' : '○ Mark as Picked'}
+        </button>
+        <label className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-body cursor-pointer px-3 py-2.5 rounded-xl border border-border bg-white hover:bg-paper transition-colors ${photoUploading ? 'opacity-50 text-muted' : 'text-muted hover:text-ink'}`}>
+          {photoUploading ? <Loader2 size={12} className="animate-spin" /> : '📷'}
+          {photoUploading ? 'Uploading…' : photoLabel}
+          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
+        </label>
+      </div>
+
+      {/* Status row — last picked + photo date */}
+      <div className={`flex justify-between items-center px-3 py-2 rounded-lg mb-3 text-xs font-body border ${
+        isPicked ? 'bg-emerald-50 border-emerald-200' : 'bg-paper border-border'
+      }`}>
+        <span className={isPicked ? 'text-success font-medium' : 'text-muted'}>
+          {isPicked
+            ? `${r.picked_at && new Date(r.picked_at).toISOString().split('T')[0] === today ? 'Picked today' : `Last picked: ${fmtDate(r.picked_at?.split('T')[0])}`} · ${r.picked_by?.split('@')[0]}`
+            : 'Last picked: never'}
+        </span>
+        {hasPhoto && (
+          <a href={r.store_photo_url} target="_blank" rel="noreferrer" className="flex items-center gap-1">
+            <img src={r.store_photo_url} alt="photo" className="h-6 w-6 object-cover rounded border border-border" />
+            <span className={`text-[11px] ${isPicked ? 'text-success' : 'text-muted'}`}>{r.store_photo_date ? fmtDate(r.store_photo_date) : ''}</span>
+          </a>
+        )}
+        {!hasPhoto && <span className={isPicked ? 'text-success/60' : 'text-muted'}>No photo yet</span>}
       </div>
 
       {/* Brand + identity */}
