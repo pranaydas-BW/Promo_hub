@@ -344,20 +344,21 @@ function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, on
           <p className="text-sm font-body text-muted opacity-60">Nothing here.</p>
         </div>
       ) : (
-        <div className="divide-y divide-border">
+        <div className="flex flex-col gap-3 p-3">
           {rows.map(r => (
-            <PromoCard
-              key={r.id}
-              row={r}
-              event={event}
-              matchDate={matchDate}
-              color={color}
-              border={border}
-              onPick={onPick}
-              currentUserEmail={currentUserEmail}
-              campaigns={campaigns}
-              onPhotoUpdate={onPhotoUpdate}
-            />
+            <div key={r.id} className="bg-white rounded-xl border border-border overflow-hidden">
+              <PromoCard
+                row={r}
+                event={event}
+                matchDate={matchDate}
+                color={color}
+                border={border}
+                onPick={onPick}
+                currentUserEmail={currentUserEmail}
+                campaigns={campaigns}
+                onPhotoUpdate={onPhotoUpdate}
+              />
+            </div>
           ))}
         </div>
       )}
