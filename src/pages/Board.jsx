@@ -759,7 +759,7 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
                 onChange={async e => {
                   await onPatch(r.id, {
                     post_creation_check: e.target.value,
-                    post_creation_check_by: user.email,
+                    post_creation_check_by: userEmail || '',
                     post_creation_check_at: new Date().toISOString(),
                   })
                 }}
