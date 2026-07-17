@@ -383,7 +383,11 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
     try {
       const ext = file.name.split('.').pop()
       const path = `store-photos/${today}_${r.promo_request_id}.${ext}`
-      const { error } = await supabase.storage.from('promo-files').upload(path, file, { upsert: true })
+      const { data: { session } } = await supabase.auth.getSession()
+      const { error } = await supabase.storage.from('promo-files').upload(path, file, { 
+        upsert: true,
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+      })
       if (error) throw error
       const { data: { publicUrl } } = supabase.storage.from('promo-files').getPublicUrl(path)
       await supabase.rpc('update_store_photo', { p_id: r.id, p_url: publicUrl, p_date: today })
