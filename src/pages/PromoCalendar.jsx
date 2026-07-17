@@ -382,7 +382,8 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
     setPhotoUploading(true)
     try {
       const ext = file.name.split('.').pop()
-      const path = `store-photos/${today}_${r.promo_request_id}.${ext}`
+      const safeId = (r.promo_request_id || '').replace(/[^a-zA-Z0-9]/g, '_')
+      const path = `store-photos/${today}_${safeId}.${ext}`
       const { data: { session } } = await supabase.auth.getSession()
       console.log('Session email:', session?.user?.email)
       const { error: storageErr } = await supabase.storage.from('promo-files').upload(path, file, { upsert: true })
