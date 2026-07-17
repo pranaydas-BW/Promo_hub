@@ -394,7 +394,9 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
       const { error: rpcErr } = await supabase.rpc('update_store_photo', { p_id: r.id, p_url: publicUrl, p_date: today })
       console.log('RPC error:', rpcErr)
       if (rpcErr) throw rpcErr
+      console.log('calling onPhotoUpdate', r.id, publicUrl, today)
       if (onPhotoUpdate) onPhotoUpdate(r.id, publicUrl, today)
+      else console.log('onPhotoUpdate is not defined!')
     } catch (err) {
       alert('Photo upload failed: ' + err.message)
     }
