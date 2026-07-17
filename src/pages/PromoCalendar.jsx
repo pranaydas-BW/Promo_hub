@@ -384,13 +384,15 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
       const ext = file.name.split('.').pop()
       const path = `store-photos/${today}_${r.promo_request_id}.${ext}`
       const { data: { session } } = await supabase.auth.getSession()
-      const { error } = await supabase.storage.from('promo-files').upload(path, file, { 
-        upsert: true,
-        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
-      })
-      if (error) throw error
+      console.log('Session email:', session?.user?.email)
+      const { error: storageErr } = await supabase.storage.from('promo-files').upload(path, file, { upsert: true })
+      console.log('Storage error:', storageErr)
+      if (storageErr) throw storageErr
       const { data: { publicUrl } } = supabase.storage.from('promo-files').getPublicUrl(path)
-      await supabase.rpc('update_store_photo', { p_id: r.id, p_url: publicUrl, p_date: today })
+      console.log('Public URL:', publicUrl)
+      const { error: rpcErr } = await supabase.rpc('update_store_photo', { p_id: r.id, p_url: publicUrl, p_date: today })
+      console.log('RPC error:', rpcErr)
+      if (rpcErr) throw rpcErr
       if (onPhotoUpdate) onPhotoUpdate(r.id, publicUrl, today)
     } catch (err) {
       alert('Photo upload failed: ' + err.message)
