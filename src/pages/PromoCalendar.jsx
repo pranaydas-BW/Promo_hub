@@ -386,7 +386,7 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
       const { error } = await supabase.storage.from('promo-files').upload(path, file, { upsert: true })
       if (error) throw error
       const { data: { publicUrl } } = supabase.storage.from('promo-files').getPublicUrl(path)
-      await supabase.from('promo_requests').update({ store_photo_url: publicUrl, store_photo_date: today }).eq('id', r.id)
+      await supabase.rpc('update_store_photo', { p_id: r.id, p_url: publicUrl, p_date: today })
       if (onPhotoUpdate) onPhotoUpdate(r.id, publicUrl, today)
     } catch (err) {
       alert('Photo upload failed: ' + err.message)
