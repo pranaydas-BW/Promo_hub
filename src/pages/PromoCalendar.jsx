@@ -262,6 +262,7 @@ campaigns={campaigns}                 title="Starting Today"
                 onExport={() => exportCSV(toExport(startingToday), `starting-today-${today}.csv`)}
                 onPick={handlePick}
                 currentUserEmail={user?.email}
+                onPhotoUpdate={handlePhotoUpdate}
               />
               <PromoGroup
 campaigns={campaigns}                 title="Ending Today"
@@ -275,6 +276,7 @@ campaigns={campaigns}                 title="Ending Today"
                 onExport={() => exportCSV(toExport(endingToday), `ending-today-${today}.csv`)}
                 onPick={handlePick}
                 currentUserEmail={user?.email}
+                onPhotoUpdate={handlePhotoUpdate}
               />
             </div>
           </div>
@@ -297,6 +299,7 @@ campaigns={campaigns}                 title="Starting Tomorrow"
                 onExport={() => exportCSV(toExport(startingTomorrow), `starting-tomorrow-${today}.csv`)}
                 onPick={handlePick}
                 currentUserEmail={user?.email}
+                onPhotoUpdate={handlePhotoUpdate}
               />
               <PromoGroup
 campaigns={campaigns}                 title="Ending Tomorrow"
@@ -310,6 +313,7 @@ campaigns={campaigns}                 title="Ending Tomorrow"
                 onExport={() => exportCSV(toExport(endingTomorrow), `ending-tomorrow-${today}.csv`)}
                 onPick={handlePick}
                 currentUserEmail={user?.email}
+                onPhotoUpdate={handlePhotoUpdate}
               />
             </div>
           </div>
