@@ -66,28 +66,13 @@ function AppRoutes() {
 
   if (!user) return <Login />
 
-  const [showMobileLanding, setShowMobileLanding] = useState(false)
-
-  useEffect(() => {
-    if (isMobile() && window.location.pathname === '/') {
-      setShowMobileLanding(true)
-    }
-  }, [])
-
-  // Hide landing once user navigates away
-  useEffect(() => {
-    if (window.location.pathname !== '/landing') {
-      setShowMobileLanding(false)
-    }
-  }, [])
-
   return (
     <div className="min-h-screen bg-paper">
-      {!showMobileLanding && <Navbar />}
+      <Navbar />
       <main>
         <Routes>
           <Route path="/landing"   element={<MobileLanding />} />
-          <Route path="/"          element={showMobileLanding ? <MobileLanding /> : <Board />} />
+          <Route path="/"          element={isMobile() ? <MobileLanding /> : <Board />} />
           <Route path="/new"       element={<NewRequest />} />
           <Route path="/today"     element={<PromoCalendar />} />
           <Route path="/brands"    element={<BrandDatabase />} />
