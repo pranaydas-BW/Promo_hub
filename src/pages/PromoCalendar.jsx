@@ -91,7 +91,7 @@ export default function TodayPromos() {
   const liveCategories = ['All', ...new Set(liveToday.map(r => r.category).filter(Boolean).sort())]
 
   const handlePhotoUpdate = (id, url, date) => {
-    setRows(prev => prev.map(r => r.id === id ? { ...r, store_photo_url: url, store_photo_date: date } : r))
+    setRows(prev => prev.map(r => r.id === id ? { ...r, store_photo_url: url, store_photo_date: date, store_photo_ts: Date.now() } : r))
   }
 
   const handlePick = async (row) => {
@@ -483,7 +483,7 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
         </span>
         {hasPhoto && (
           <a href={r.store_photo_url} target="_blank" rel="noreferrer" className="flex items-center gap-1">
-            <img src={r.store_photo_url} alt="photo" className="h-6 w-6 object-cover rounded border border-border" />
+            <img src={`${r.store_photo_url}?t=${r.store_photo_ts || r.store_photo_date}`} alt="photo" className="h-6 w-6 object-cover rounded border border-border" />
             <span className={`text-[11px] ${isPicked ? 'text-success' : 'text-muted'}`}>{r.store_photo_date ? fmtDate(r.store_photo_date) : ''}</span>
           </a>
         )}
