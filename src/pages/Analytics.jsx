@@ -86,7 +86,7 @@ export default function Analytics() {
       while (true) {
         const { data } = await supabase
           .from('historical_promos')
-          .select('promo_request_id,brand_names,category,valid_from,valid_till,promotion_details,promotion_name,status,store,assortment_type,sku_file_link')
+          .select('promo_request_id,brand_names,category,valid_from,valid_till,promotion_details,promotion_name,status,store,assortment_type,offer_type')
           .range(from, from + 999)
         if (!data || data.length === 0) break
         hist = [...hist, ...data]
@@ -130,7 +130,7 @@ export default function Analytics() {
       store: r.store || '',
       status: r.status || '',
       assortment: r.assortment_type || '',
-      skuLink: r.sku_file_link || '',
+      skuLink: '',
       source: 'historical',
     })),
     ...current.flatMap(r => {
