@@ -93,18 +93,24 @@ export default function Analytics() {
         if (data.length < 1000) break
         from += 1000
       }
-      const { data: cur } = await supabase
-        .from('promo_requests')
-        .select('promo_request_id,brand_names,category,date_ranges,promo_details,promotion_name,status,assortment_type,sku_file_link,store,campaign_id,offer_type')
-        .limit(5000)
+      let cur = []
+      let curFrom = 0
+      while (true) {
+        const { data: curPage } = await supabase
+          .from('promo_requests')
+          .select('promo_request_id,brand_names,category,date_ranges,promo_details,promotion_name,status,assortment_type,sku_file_link,store,campaign_id,offer_type')
+          .range(curFrom, curFrom + 999)
+        if (!curPage || curPage.length === 0) break
+        cur = [...cur, ...curPage]
+        if (curPage.length < 1000) break
+        curFrom += 1000
+      }
       // #2 — fetch top brands from Supabase
       const { data: tb } = await supabase
         .from('top_brands')
         .select('brand_name')
         .order('brand_name')
       setHistorical(hist)
-      console.log('current promos count:', (cur || []).length)
-      console.log('52 sundaze in current:', (cur || []).filter(r => r.brand_names?.toLowerCase().includes('52 sundaze')).map(r => r.promo_request_id))
       setCurrent(cur || [])
       setTopBrands((tb || []).map(r => r.brand_name.toLowerCase().trim()))
       setLoading(false)
