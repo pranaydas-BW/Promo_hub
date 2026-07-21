@@ -103,6 +103,8 @@ export default function Analytics() {
         .select('brand_name')
         .order('brand_name')
       setHistorical(hist)
+      console.log('current promos count:', (cur || []).length)
+      console.log('52 sundaze in current:', (cur || []).filter(r => r.brand_names?.toLowerCase().includes('52 sundaze')).map(r => r.promo_request_id))
       setCurrent(cur || [])
       setTopBrands((tb || []).map(r => r.brand_name.toLowerCase().trim()))
       setLoading(false)
