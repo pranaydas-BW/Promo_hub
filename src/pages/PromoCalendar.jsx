@@ -41,11 +41,6 @@ export default function TodayPromos() {
 
   useEffect(() => { load() }, [store, campFilter])
 
-  // Auto-refresh every 5 minutes
-  useEffect(() => {
-    const interval = setInterval(() => { load() }, 5 * 60 * 1000)
-    return () => clearInterval(interval)
-  }, [store, campFilter])
 
   const load = async () => {
     setLoading(true)

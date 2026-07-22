@@ -120,9 +120,6 @@ export default function Analytics() {
     supabase.from('sale_campaigns').select('*').order('start_date', { ascending: false })
       .then(({ data }) => setCampaigns(data || []))
 
-    // Auto-refresh every 5 minutes
-    const interval = setInterval(() => { fetchAll() }, 5 * 60 * 1000)
-    return () => clearInterval(interval)
   }, [])
 
   const allPromos = [
