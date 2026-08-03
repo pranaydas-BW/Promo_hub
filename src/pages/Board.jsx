@@ -837,13 +837,15 @@ function EditPanel({ row: r, onPatch, isAdmin, userEmail }) {
   const [draft, setDraft] = useState({
     promo_details: r.promo_details || '',
     store: r.store || '',
+    date_ranges: Array.isArray(r.date_ranges) ? r.date_ranges.map(dr => ({ from: dr.from || '', till: dr.till || '' })) : [],
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
   const isDirty =
     draft.promo_details !== (r.promo_details || '') ||
-    draft.store !== (r.store || '')
+    draft.store !== (r.store || '') ||
+    JSON.stringify(draft.date_ranges) !== JSON.stringify(r.date_ranges || [])
 
   const handleSave = async () => {
     setSaving(true)
@@ -854,9 +856,13 @@ function EditPanel({ row: r, onPatch, isAdmin, userEmail }) {
     if (draft.store !== (r.store || '')) {
       changes.push({ promo_request_id: r.promo_request_id, field_name: 'store', old_value: r.store || '', new_value: draft.store, edited_by: userEmail })
     }
+    const dateRangesChanged = JSON.stringify(draft.date_ranges) !== JSON.stringify(r.date_ranges || [])
+    if (dateRangesChanged) {
+      changes.push({ promo_request_id: r.promo_request_id, field_name: 'date_ranges', old_value: JSON.stringify(r.date_ranges || []), new_value: JSON.stringify(draft.date_ranges), edited_by: userEmail })
+    }
     if (changes.length) {
       await supabase.from('promo_edits').insert(changes)
-      await onPatch(r.id, { promo_details: draft.promo_details, store: draft.store })
+      await onPatch(r.id, { promo_details: draft.promo_details, store: draft.store, ...(dateRangesChanged ? { date_ranges: draft.date_ranges } : {}) })
     }
     setSaving(false)
     setSaved(true)
@@ -921,6 +927,29 @@ function EditPanel({ row: r, onPatch, isAdmin, userEmail }) {
               value={draft.store}
               onChange={e => setDraft(d => ({ ...d, store: e.target.value }))}
             />
+          </div>
+          <div>
+            <label className="text-[10px] font-mono uppercase text-muted mb-1 block">Date Ranges</label>
+            <div className="space-y-2">
+              {draft.date_ranges.map((dr, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted font-mono w-4">{i + 1}</span>
+                  <input type="date" value={dr.from}
+                    onChange={e => setDraft(d => ({ ...d, date_ranges: d.date_ranges.map((x, j) => j === i ? { ...x, from: e.target.value } : x) }))}
+                    className="bg-white border border-border rounded-lg px-2 py-1 text-xs font-body focus:outline-none focus:ring-2 focus:ring-accent/20" />
+                  <span className="text-muted text-xs">→</span>
+                  <input type="date" value={dr.till}
+                    onChange={e => setDraft(d => ({ ...d, date_ranges: d.date_ranges.map((x, j) => j === i ? { ...x, till: e.target.value } : x) }))}
+                    className="bg-white border border-border rounded-lg px-2 py-1 text-xs font-body focus:outline-none focus:ring-2 focus:ring-accent/20" />
+                  {draft.date_ranges.length > 1 && (
+                    <button onClick={() => setDraft(d => ({ ...d, date_ranges: d.date_ranges.filter((_, j) => j !== i) }))}
+                      className="text-danger text-xs hover:opacity-70">✕</button>
+                  )}
+                </div>
+              ))}
+              <button onClick={() => setDraft(d => ({ ...d, date_ranges: [...d.date_ranges, { from: '', till: '' }] }))}
+                className="text-[11px] text-accent hover:underline font-body">+ Add date range</button>
+            </div>
           </div>
           {isDirty && (
             <button
