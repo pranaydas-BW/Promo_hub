@@ -350,151 +350,6 @@ export default function Analytics() {
   // #2 — show top brands toggle on all tabs
   const showTopBrandsToggle = true
 
-  const INVENTORY_SHEET_ID = '1Uo7OtHVekjsuTSfVodzUNqkL5dtOneM1GwPn85OG_gM'
-  const CITY_TABS = ['VK Delhi', 'BH HYD', 'Pune', 'Mumbai']
-  const CITY_KEYS = ['VK Delhi', 'BH HYD', 'Pune', 'Mumbai']
-
-  const fetchInventoryTab = async (tabName) => {
-    const url = `https://docs.google.com/spreadsheets/d/${INVENTORY_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`
-    const res = await fetch(url)
-    if (!res.ok) return {}
-    const text = await res.text()
-    const parseCSV = csv => {
-      const records = []
-      let cur = '', inQ = false, fields = []
-      for (let i = 0; i < csv.length; i++) {
-        const ch = csv[i], next = csv[i+1]
-        if (ch === '"') { if (inQ && next === '"') { cur += '"'; i++ } else { inQ = !inQ } }
-        else if (ch === ',' && !inQ) { fields.push(cur.trim()); cur = '' }
-        else if ((ch === '\n' || ch === '\r') && !inQ) {
-          if (ch === '\r' && next === '\n') i++
-          fields.push(cur.trim()); cur = ''
-          if (fields.some(f => f.length > 0)) records.push(fields)
-          fields = []
-        } else { cur += ch }
-      }
-      if (cur || fields.length) { fields.push(cur.trim()); if (fields.some(f => f.length > 0)) records.push(fields) }
-      return records
-    }
-    const records = parseCSV(text)
-    if (records.length < 2) return {}
-    const headers = records[0]
-    const barcodeIdx = headers.findIndex(h => h.toLowerCase().includes('barcode'))
-    const whIdx = headers.findIndex(h => h.toLowerCase().includes('ware house') || h.toLowerCase().includes('warehouse'))
-    const storeIdx = headers.findIndex(h => h.toLowerCase() === 'store stock')
-    const vendorIdx = headers.findIndex(h => h.toLowerCase().includes('vendor article name'))
-    const itemIdx = headers.findIndex(h => h.toLowerCase() === 'item name')
-    const sizeIdx = headers.findIndex(h => h.toLowerCase() === 'size')
-    const mrpIdx = headers.findIndex(h => h.toLowerCase() === 'mrp')
-    const rspIdx = headers.findIndex(h => h.toLowerCase() === 'rsp')
-    const map = {}
-    records.slice(1).forEach(row => {
-      const bc = (row[barcodeIdx] || '').toString().trim().replace(/\.0$/, '')
-      if (bc) map[bc] = {
-        vendor_article_name: row[vendorIdx] || '',
-        item_name: row[itemIdx] || '',
-        size: row[sizeIdx] || '',
-        mrp: row[mrpIdx] || '',
-        rsp: row[rspIdx] || '',
-        wh_stock: row[whIdx] || '',
-        store_stock: row[storeIdx] || '',
-      }
-    })
-    return map
-  }
-
-  const handleDayExport = async () => {
-    setDayExporting(true)
-    try {
-      // Fetch all 4 city inventory tabs in parallel
-      const [delhiMap, hydMap, puneMap, mumbaiMap] = await Promise.all(
-        CITY_TABS.map(tab => fetchInventoryTab(tab))
-      )
-      const cityMaps = { 'VK Delhi': delhiMap, 'BH HYD': hydMap, 'Pune': puneMap, 'Mumbai': mumbaiMap }
-
-      const rows = []
-      for (const promo of dayPromosList) {
-        if (promo.skuLink) {
-          // SKU level — fetch promo file and match barcodes
-          try {
-            const res = await fetch(promo.skuLink)
-            const text = await res.text()
-            const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
-            if (lines.length < 2) continue
-            const headers = lines[0].split(',').map(h => h.trim())
-            const bcCol = headers.findIndex(h => h.toLowerCase().includes('barcode')) 
-            const skuRows = lines.slice(1).map(line => {
-              const vals = line.split(',')
-              const obj = {}
-              headers.forEach((h, i) => { obj[h] = (vals[i] || '').trim() })
-              return obj
-            }).filter(r => Object.values(r).some(v => v))
-            for (const skuRow of skuRows) {
-              const bc = (skuRow[headers[bcCol]] || '').toString().trim()
-              // Find inventory data from any city map
-              const invData = delhiMap[bc] || hydMap[bc] || puneMap[bc] || mumbaiMap[bc] || {}
-              rows.push({
-                'Promo ID': promo.promoId,
-                'Promo Name': promo.promoName,
-                'Brand': promo.brand,
-                'Category': promo.category,
-                'Start Date': promo.from,
-                'End Date': promo.till,
-                'Live Offers': promo.offers.join(' | '),
-                'Barcode': bc,
-                'Vendor Article Name': invData.vendor_article_name || '',
-                'Item Name': invData.item_name || '',
-                'Size': invData.size || '',
-                'MRP': invData.mrp || '',
-                'RSP': invData.rsp || '',
-                'VK Delhi - WH Stock': (delhiMap[bc] || {}).wh_stock || '',
-                'VK Delhi - Store Stock': (delhiMap[bc] || {}).store_stock || '',
-                'BH HYD - WH Stock': (hydMap[bc] || {}).wh_stock || '',
-                'BH HYD - Store Stock': (hydMap[bc] || {}).store_stock || '',
-                'Pune - WH Stock': (puneMap[bc] || {}).wh_stock || '',
-                'Pune - Store Stock': (puneMap[bc] || {}).store_stock || '',
-                'Mumbai - WH Stock': (mumbaiMap[bc] || {}).wh_stock || '',
-                'Mumbai - Store Stock': (mumbaiMap[bc] || {}).store_stock || '',
-              })
-            }
-          } catch(e) {
-            // If SKU file fails, add promo row without SKU data
-            rows.push({
-              'Promo ID': promo.promoId, 'Promo Name': promo.promoName,
-              'Brand': promo.brand, 'Category': promo.category,
-              'Start Date': promo.from, 'End Date': promo.till,
-              'Live Offers': promo.offers.join(' | '),
-              'Barcode': '', 'Vendor Article Name': '', 'Item Name': '',
-              'Size': '', 'MRP': '', 'RSP': '',
-              'VK Delhi - WH Stock': '', 'VK Delhi - Store Stock': '',
-              'BH HYD - WH Stock': '', 'BH HYD - Store Stock': '',
-              'Pune - WH Stock': '', 'Pune - Store Stock': '',
-              'Mumbai - WH Stock': '', 'Mumbai - Store Stock': '',
-            })
-          }
-        } else {
-          // All SKUs — no barcode file, just add promo row
-          rows.push({
-            'Promo ID': promo.promoId, 'Promo Name': promo.promoName,
-            'Brand': promo.brand, 'Category': promo.category,
-            'Start Date': promo.from, 'End Date': promo.till,
-            'Live Offers': promo.offers.join(' | '),
-            'Barcode': '', 'Vendor Article Name': '', 'Item Name': '',
-            'Size': '', 'MRP': '', 'RSP': '',
-            'VK Delhi - WH Stock': '', 'VK Delhi - Store Stock': '',
-            'BH HYD - WH Stock': '', 'BH HYD - Store Stock': '',
-            'Pune - WH Stock': '', 'Pune - Store Stock': '',
-            'Mumbai - WH Stock': '', 'Mumbai - Store Stock': '',
-          })
-        }
-      }
-      exportCSV(rows, `live-promos-inventory-${selectedDay}.csv`)
-    } catch(e) {
-      alert('Export failed: ' + e.message)
-    }
-    setDayExporting(false)
-  }
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 fade-in">
       <div className="flex items-start justify-between mb-6">
@@ -911,9 +766,9 @@ export default function Analytics() {
                     <tbody>
                       {endingSoonList.map((r, i) => {
                         const daysLeft = Math.ceil((new Date(r.till) - new Date(today)) / 86400000)
-                        const INVENTORY_SHEET_ID = '1Uo7OtHVekjsuTSfVodzUNqkL5dtOneM1GwPn85OG_gM'
+
+  const INVENTORY_SHEET_ID = '1Uo7OtHVekjsuTSfVodzUNqkL5dtOneM1GwPn85OG_gM'
   const CITY_TABS = ['VK Delhi', 'BH HYD', 'Pune', 'Mumbai']
-  const CITY_KEYS = ['VK Delhi', 'BH HYD', 'Pune', 'Mumbai']
 
   const fetchInventoryTab = async (tabName) => {
     const url = `https://docs.google.com/spreadsheets/d/${INVENTORY_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`
@@ -967,23 +822,19 @@ export default function Analytics() {
   const handleDayExport = async () => {
     setDayExporting(true)
     try {
-      // Fetch all 4 city inventory tabs in parallel
       const [delhiMap, hydMap, puneMap, mumbaiMap] = await Promise.all(
         CITY_TABS.map(tab => fetchInventoryTab(tab))
       )
-      const cityMaps = { 'VK Delhi': delhiMap, 'BH HYD': hydMap, 'Pune': puneMap, 'Mumbai': mumbaiMap }
-
       const rows = []
       for (const promo of dayPromosList) {
         if (promo.skuLink) {
-          // SKU level — fetch promo file and match barcodes
           try {
             const res = await fetch(promo.skuLink)
             const text = await res.text()
             const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
             if (lines.length < 2) continue
             const headers = lines[0].split(',').map(h => h.trim())
-            const bcCol = headers.findIndex(h => h.toLowerCase().includes('barcode')) 
+            const bcColIdx = headers.findIndex(h => h.toLowerCase().includes('barcode'))
             const skuRows = lines.slice(1).map(line => {
               const vals = line.split(',')
               const obj = {}
@@ -991,16 +842,12 @@ export default function Analytics() {
               return obj
             }).filter(r => Object.values(r).some(v => v))
             for (const skuRow of skuRows) {
-              const bc = (skuRow[headers[bcCol]] || '').toString().trim()
-              // Find inventory data from any city map
+              const bc = (skuRow[headers[bcColIdx]] || '').toString().trim()
               const invData = delhiMap[bc] || hydMap[bc] || puneMap[bc] || mumbaiMap[bc] || {}
               rows.push({
-                'Promo ID': promo.promoId,
-                'Promo Name': promo.promoName,
-                'Brand': promo.brand,
-                'Category': promo.category,
-                'Start Date': promo.from,
-                'End Date': promo.till,
+                'Promo ID': promo.promoId, 'Promo Name': promo.promoName,
+                'Brand': promo.brand, 'Category': promo.category,
+                'Start Date': promo.from, 'End Date': promo.till,
                 'Live Offers': promo.offers.join(' | '),
                 'Barcode': bc,
                 'Vendor Article Name': invData.vendor_article_name || '',
@@ -1019,7 +866,6 @@ export default function Analytics() {
               })
             }
           } catch(e) {
-            // If SKU file fails, add promo row without SKU data
             rows.push({
               'Promo ID': promo.promoId, 'Promo Name': promo.promoName,
               'Brand': promo.brand, 'Category': promo.category,
@@ -1034,7 +880,6 @@ export default function Analytics() {
             })
           }
         } else {
-          // All SKUs — no barcode file, just add promo row
           rows.push({
             'Promo ID': promo.promoId, 'Promo Name': promo.promoName,
             'Brand': promo.brand, 'Category': promo.category,
@@ -1056,7 +901,7 @@ export default function Analytics() {
     setDayExporting(false)
   }
 
-  return (
+                        return (
                           <tr key={i} className={`border-b border-border last:border-0 hover:bg-paper/40 ${daysLeft <= 2 ? 'bg-red-50/30' : daysLeft <= 4 ? 'bg-amber-50/30' : ''}`}>
                             <td className="px-4 py-3 font-medium text-ink">
                               <span className="flex items-center gap-1.5">
@@ -1104,152 +949,7 @@ function OnlineOfflineTab({ allPromos }) {
 
   // Filter to promos active within the selected date range
   const dateFiltered = allPromos.filter(r => {
-    const INVENTORY_SHEET_ID = '1Uo7OtHVekjsuTSfVodzUNqkL5dtOneM1GwPn85OG_gM'
-  const CITY_TABS = ['VK Delhi', 'BH HYD', 'Pune', 'Mumbai']
-  const CITY_KEYS = ['VK Delhi', 'BH HYD', 'Pune', 'Mumbai']
-
-  const fetchInventoryTab = async (tabName) => {
-    const url = `https://docs.google.com/spreadsheets/d/${INVENTORY_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`
-    const res = await fetch(url)
-    if (!res.ok) return {}
-    const text = await res.text()
-    const parseCSV = csv => {
-      const records = []
-      let cur = '', inQ = false, fields = []
-      for (let i = 0; i < csv.length; i++) {
-        const ch = csv[i], next = csv[i+1]
-        if (ch === '"') { if (inQ && next === '"') { cur += '"'; i++ } else { inQ = !inQ } }
-        else if (ch === ',' && !inQ) { fields.push(cur.trim()); cur = '' }
-        else if ((ch === '\n' || ch === '\r') && !inQ) {
-          if (ch === '\r' && next === '\n') i++
-          fields.push(cur.trim()); cur = ''
-          if (fields.some(f => f.length > 0)) records.push(fields)
-          fields = []
-        } else { cur += ch }
-      }
-      if (cur || fields.length) { fields.push(cur.trim()); if (fields.some(f => f.length > 0)) records.push(fields) }
-      return records
-    }
-    const records = parseCSV(text)
-    if (records.length < 2) return {}
-    const headers = records[0]
-    const barcodeIdx = headers.findIndex(h => h.toLowerCase().includes('barcode'))
-    const whIdx = headers.findIndex(h => h.toLowerCase().includes('ware house') || h.toLowerCase().includes('warehouse'))
-    const storeIdx = headers.findIndex(h => h.toLowerCase() === 'store stock')
-    const vendorIdx = headers.findIndex(h => h.toLowerCase().includes('vendor article name'))
-    const itemIdx = headers.findIndex(h => h.toLowerCase() === 'item name')
-    const sizeIdx = headers.findIndex(h => h.toLowerCase() === 'size')
-    const mrpIdx = headers.findIndex(h => h.toLowerCase() === 'mrp')
-    const rspIdx = headers.findIndex(h => h.toLowerCase() === 'rsp')
-    const map = {}
-    records.slice(1).forEach(row => {
-      const bc = (row[barcodeIdx] || '').toString().trim().replace(/\.0$/, '')
-      if (bc) map[bc] = {
-        vendor_article_name: row[vendorIdx] || '',
-        item_name: row[itemIdx] || '',
-        size: row[sizeIdx] || '',
-        mrp: row[mrpIdx] || '',
-        rsp: row[rspIdx] || '',
-        wh_stock: row[whIdx] || '',
-        store_stock: row[storeIdx] || '',
-      }
-    })
-    return map
-  }
-
-  const handleDayExport = async () => {
-    setDayExporting(true)
-    try {
-      // Fetch all 4 city inventory tabs in parallel
-      const [delhiMap, hydMap, puneMap, mumbaiMap] = await Promise.all(
-        CITY_TABS.map(tab => fetchInventoryTab(tab))
-      )
-      const cityMaps = { 'VK Delhi': delhiMap, 'BH HYD': hydMap, 'Pune': puneMap, 'Mumbai': mumbaiMap }
-
-      const rows = []
-      for (const promo of dayPromosList) {
-        if (promo.skuLink) {
-          // SKU level — fetch promo file and match barcodes
-          try {
-            const res = await fetch(promo.skuLink)
-            const text = await res.text()
-            const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
-            if (lines.length < 2) continue
-            const headers = lines[0].split(',').map(h => h.trim())
-            const bcCol = headers.findIndex(h => h.toLowerCase().includes('barcode')) 
-            const skuRows = lines.slice(1).map(line => {
-              const vals = line.split(',')
-              const obj = {}
-              headers.forEach((h, i) => { obj[h] = (vals[i] || '').trim() })
-              return obj
-            }).filter(r => Object.values(r).some(v => v))
-            for (const skuRow of skuRows) {
-              const bc = (skuRow[headers[bcCol]] || '').toString().trim()
-              // Find inventory data from any city map
-              const invData = delhiMap[bc] || hydMap[bc] || puneMap[bc] || mumbaiMap[bc] || {}
-              rows.push({
-                'Promo ID': promo.promoId,
-                'Promo Name': promo.promoName,
-                'Brand': promo.brand,
-                'Category': promo.category,
-                'Start Date': promo.from,
-                'End Date': promo.till,
-                'Live Offers': promo.offers.join(' | '),
-                'Barcode': bc,
-                'Vendor Article Name': invData.vendor_article_name || '',
-                'Item Name': invData.item_name || '',
-                'Size': invData.size || '',
-                'MRP': invData.mrp || '',
-                'RSP': invData.rsp || '',
-                'VK Delhi - WH Stock': (delhiMap[bc] || {}).wh_stock || '',
-                'VK Delhi - Store Stock': (delhiMap[bc] || {}).store_stock || '',
-                'BH HYD - WH Stock': (hydMap[bc] || {}).wh_stock || '',
-                'BH HYD - Store Stock': (hydMap[bc] || {}).store_stock || '',
-                'Pune - WH Stock': (puneMap[bc] || {}).wh_stock || '',
-                'Pune - Store Stock': (puneMap[bc] || {}).store_stock || '',
-                'Mumbai - WH Stock': (mumbaiMap[bc] || {}).wh_stock || '',
-                'Mumbai - Store Stock': (mumbaiMap[bc] || {}).store_stock || '',
-              })
-            }
-          } catch(e) {
-            // If SKU file fails, add promo row without SKU data
-            rows.push({
-              'Promo ID': promo.promoId, 'Promo Name': promo.promoName,
-              'Brand': promo.brand, 'Category': promo.category,
-              'Start Date': promo.from, 'End Date': promo.till,
-              'Live Offers': promo.offers.join(' | '),
-              'Barcode': '', 'Vendor Article Name': '', 'Item Name': '',
-              'Size': '', 'MRP': '', 'RSP': '',
-              'VK Delhi - WH Stock': '', 'VK Delhi - Store Stock': '',
-              'BH HYD - WH Stock': '', 'BH HYD - Store Stock': '',
-              'Pune - WH Stock': '', 'Pune - Store Stock': '',
-              'Mumbai - WH Stock': '', 'Mumbai - Store Stock': '',
-            })
-          }
-        } else {
-          // All SKUs — no barcode file, just add promo row
-          rows.push({
-            'Promo ID': promo.promoId, 'Promo Name': promo.promoName,
-            'Brand': promo.brand, 'Category': promo.category,
-            'Start Date': promo.from, 'End Date': promo.till,
-            'Live Offers': promo.offers.join(' | '),
-            'Barcode': '', 'Vendor Article Name': '', 'Item Name': '',
-            'Size': '', 'MRP': '', 'RSP': '',
-            'VK Delhi - WH Stock': '', 'VK Delhi - Store Stock': '',
-            'BH HYD - WH Stock': '', 'BH HYD - Store Stock': '',
-            'Pune - WH Stock': '', 'Pune - Store Stock': '',
-            'Mumbai - WH Stock': '', 'Mumbai - Store Stock': '',
-          })
-        }
-      }
-      exportCSV(rows, `live-promos-inventory-${selectedDay}.csv`)
-    } catch(e) {
-      alert('Export failed: ' + e.message)
-    }
-    setDayExporting(false)
-  }
-
-  return (r.from || '') <= dateTo && (r.till || '') >= dateFrom
+    return (r.from || '') <= dateTo && (r.till || '') >= dateFrom
   })
 
   // Build one row per brand — latest promo details, online=Yes if any promo is online
@@ -1284,151 +984,6 @@ function OnlineOfflineTab({ allPromos }) {
 
   const onlineCount = Object.values(brandMap).filter(b => b.online).length
   const offlineCount = Object.values(brandMap).filter(b => !b.online).length
-
-  const INVENTORY_SHEET_ID = '1Uo7OtHVekjsuTSfVodzUNqkL5dtOneM1GwPn85OG_gM'
-  const CITY_TABS = ['VK Delhi', 'BH HYD', 'Pune', 'Mumbai']
-  const CITY_KEYS = ['VK Delhi', 'BH HYD', 'Pune', 'Mumbai']
-
-  const fetchInventoryTab = async (tabName) => {
-    const url = `https://docs.google.com/spreadsheets/d/${INVENTORY_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`
-    const res = await fetch(url)
-    if (!res.ok) return {}
-    const text = await res.text()
-    const parseCSV = csv => {
-      const records = []
-      let cur = '', inQ = false, fields = []
-      for (let i = 0; i < csv.length; i++) {
-        const ch = csv[i], next = csv[i+1]
-        if (ch === '"') { if (inQ && next === '"') { cur += '"'; i++ } else { inQ = !inQ } }
-        else if (ch === ',' && !inQ) { fields.push(cur.trim()); cur = '' }
-        else if ((ch === '\n' || ch === '\r') && !inQ) {
-          if (ch === '\r' && next === '\n') i++
-          fields.push(cur.trim()); cur = ''
-          if (fields.some(f => f.length > 0)) records.push(fields)
-          fields = []
-        } else { cur += ch }
-      }
-      if (cur || fields.length) { fields.push(cur.trim()); if (fields.some(f => f.length > 0)) records.push(fields) }
-      return records
-    }
-    const records = parseCSV(text)
-    if (records.length < 2) return {}
-    const headers = records[0]
-    const barcodeIdx = headers.findIndex(h => h.toLowerCase().includes('barcode'))
-    const whIdx = headers.findIndex(h => h.toLowerCase().includes('ware house') || h.toLowerCase().includes('warehouse'))
-    const storeIdx = headers.findIndex(h => h.toLowerCase() === 'store stock')
-    const vendorIdx = headers.findIndex(h => h.toLowerCase().includes('vendor article name'))
-    const itemIdx = headers.findIndex(h => h.toLowerCase() === 'item name')
-    const sizeIdx = headers.findIndex(h => h.toLowerCase() === 'size')
-    const mrpIdx = headers.findIndex(h => h.toLowerCase() === 'mrp')
-    const rspIdx = headers.findIndex(h => h.toLowerCase() === 'rsp')
-    const map = {}
-    records.slice(1).forEach(row => {
-      const bc = (row[barcodeIdx] || '').toString().trim().replace(/\.0$/, '')
-      if (bc) map[bc] = {
-        vendor_article_name: row[vendorIdx] || '',
-        item_name: row[itemIdx] || '',
-        size: row[sizeIdx] || '',
-        mrp: row[mrpIdx] || '',
-        rsp: row[rspIdx] || '',
-        wh_stock: row[whIdx] || '',
-        store_stock: row[storeIdx] || '',
-      }
-    })
-    return map
-  }
-
-  const handleDayExport = async () => {
-    setDayExporting(true)
-    try {
-      // Fetch all 4 city inventory tabs in parallel
-      const [delhiMap, hydMap, puneMap, mumbaiMap] = await Promise.all(
-        CITY_TABS.map(tab => fetchInventoryTab(tab))
-      )
-      const cityMaps = { 'VK Delhi': delhiMap, 'BH HYD': hydMap, 'Pune': puneMap, 'Mumbai': mumbaiMap }
-
-      const rows = []
-      for (const promo of dayPromosList) {
-        if (promo.skuLink) {
-          // SKU level — fetch promo file and match barcodes
-          try {
-            const res = await fetch(promo.skuLink)
-            const text = await res.text()
-            const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
-            if (lines.length < 2) continue
-            const headers = lines[0].split(',').map(h => h.trim())
-            const bcCol = headers.findIndex(h => h.toLowerCase().includes('barcode')) 
-            const skuRows = lines.slice(1).map(line => {
-              const vals = line.split(',')
-              const obj = {}
-              headers.forEach((h, i) => { obj[h] = (vals[i] || '').trim() })
-              return obj
-            }).filter(r => Object.values(r).some(v => v))
-            for (const skuRow of skuRows) {
-              const bc = (skuRow[headers[bcCol]] || '').toString().trim()
-              // Find inventory data from any city map
-              const invData = delhiMap[bc] || hydMap[bc] || puneMap[bc] || mumbaiMap[bc] || {}
-              rows.push({
-                'Promo ID': promo.promoId,
-                'Promo Name': promo.promoName,
-                'Brand': promo.brand,
-                'Category': promo.category,
-                'Start Date': promo.from,
-                'End Date': promo.till,
-                'Live Offers': promo.offers.join(' | '),
-                'Barcode': bc,
-                'Vendor Article Name': invData.vendor_article_name || '',
-                'Item Name': invData.item_name || '',
-                'Size': invData.size || '',
-                'MRP': invData.mrp || '',
-                'RSP': invData.rsp || '',
-                'VK Delhi - WH Stock': (delhiMap[bc] || {}).wh_stock || '',
-                'VK Delhi - Store Stock': (delhiMap[bc] || {}).store_stock || '',
-                'BH HYD - WH Stock': (hydMap[bc] || {}).wh_stock || '',
-                'BH HYD - Store Stock': (hydMap[bc] || {}).store_stock || '',
-                'Pune - WH Stock': (puneMap[bc] || {}).wh_stock || '',
-                'Pune - Store Stock': (puneMap[bc] || {}).store_stock || '',
-                'Mumbai - WH Stock': (mumbaiMap[bc] || {}).wh_stock || '',
-                'Mumbai - Store Stock': (mumbaiMap[bc] || {}).store_stock || '',
-              })
-            }
-          } catch(e) {
-            // If SKU file fails, add promo row without SKU data
-            rows.push({
-              'Promo ID': promo.promoId, 'Promo Name': promo.promoName,
-              'Brand': promo.brand, 'Category': promo.category,
-              'Start Date': promo.from, 'End Date': promo.till,
-              'Live Offers': promo.offers.join(' | '),
-              'Barcode': '', 'Vendor Article Name': '', 'Item Name': '',
-              'Size': '', 'MRP': '', 'RSP': '',
-              'VK Delhi - WH Stock': '', 'VK Delhi - Store Stock': '',
-              'BH HYD - WH Stock': '', 'BH HYD - Store Stock': '',
-              'Pune - WH Stock': '', 'Pune - Store Stock': '',
-              'Mumbai - WH Stock': '', 'Mumbai - Store Stock': '',
-            })
-          }
-        } else {
-          // All SKUs — no barcode file, just add promo row
-          rows.push({
-            'Promo ID': promo.promoId, 'Promo Name': promo.promoName,
-            'Brand': promo.brand, 'Category': promo.category,
-            'Start Date': promo.from, 'End Date': promo.till,
-            'Live Offers': promo.offers.join(' | '),
-            'Barcode': '', 'Vendor Article Name': '', 'Item Name': '',
-            'Size': '', 'MRP': '', 'RSP': '',
-            'VK Delhi - WH Stock': '', 'VK Delhi - Store Stock': '',
-            'BH HYD - WH Stock': '', 'BH HYD - Store Stock': '',
-            'Pune - WH Stock': '', 'Pune - Store Stock': '',
-            'Mumbai - WH Stock': '', 'Mumbai - Store Stock': '',
-          })
-        }
-      }
-      exportCSV(rows, `live-promos-inventory-${selectedDay}.csv`)
-    } catch(e) {
-      alert('Export failed: ' + e.message)
-    }
-    setDayExporting(false)
-  }
 
   return (
     <div>
