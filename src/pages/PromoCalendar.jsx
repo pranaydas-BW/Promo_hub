@@ -331,6 +331,7 @@ export default function TodayPromos() {
             onPick={handlePick}
             currentUserEmail={user?.email}
             onPhotoUpdate={handlePhotoUpdate}
+            storeFilter={store}
           />
         </div>
       ) : (
@@ -416,7 +417,7 @@ campaigns={campaigns}                 title="Ending Tomorrow"
   )
 }
 
-function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, onExport, exporting = false, onPick, currentUserEmail, campaigns = [], onPhotoUpdate }) {
+function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, onExport, exporting = false, onPick, currentUserEmail, campaigns = [], onPhotoUpdate, storeFilter = 'All' }) {
   return (
     <div className="bg-white border border-border rounded-xl overflow-hidden">
       {/* Group header */}
@@ -454,6 +455,7 @@ function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, on
                 currentUserEmail={currentUserEmail}
                 campaigns={campaigns}
                 onPhotoUpdate={onPhotoUpdate}
+                storeFilter={storeFilter}
               />
             </div>
           ))}
@@ -463,7 +465,7 @@ function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, on
   )
 }
 
-function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, campaigns = [], onPhotoUpdate }) {
+function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, campaigns = [], onPhotoUpdate, storeFilter = 'All' }) {
   const isPicked = !!r.picked_by
   const isNewPromo = isNew(r)
   const pickedByMe = r.picked_by === currentUserEmail
@@ -472,6 +474,110 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
   const hasPhoto = !!r.store_photo_url
   const hasPhotoToday = r.store_photo_url && r.store_photo_date === today
   const photoLabel = hasPhotoToday ? 'Replace' : hasPhoto ? 'Update photo' : 'Take photo'
+
+  const [skuDownloading, setSkuDownloading] = useState(false)
+
+  const CITY_MAP = {
+    'All': ['VK Delhi', 'BH HYD', 'Pune', 'Mumbai'],
+    'VK, Delhi': ['VK Delhi'],
+    'BH, Hyderabad': ['BH HYD'],
+    'Pune': ['Pune'],
+    'Mumbai': ['Mumbai'],
+  }
+
+  const handleSkuDownload = async () => {
+    if (!r.sku_file_link) return
+    setSkuDownloading(true)
+    try {
+      const cityTabs = CITY_MAP[storeFilter] || ['VK Delhi', 'BH HYD', 'Pune', 'Mumbai']
+      const INVENTORY_SHEET_ID = '1Uo7OtHVekjsuTSfVodzUNqkL5dtOneM1GwPn85OG_gM'
+
+      // Fetch relevant city tabs
+      const fetchTab = async (tabName) => {
+        const url = `https://docs.google.com/spreadsheets/d/${INVENTORY_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`
+        const res = await fetch(url)
+        if (!res.ok) return {}
+        const text = await res.text()
+        const parseCSV = csv => {
+          const records = []; let cur = '', inQ = false, fields = []
+          for (let i = 0; i < csv.length; i++) {
+            const ch = csv[i], next = csv[i+1]
+            if (ch === '"') { if (inQ && next === '"') { cur += '"'; i++ } else { inQ = !inQ } }
+            else if (ch === ',' && !inQ) { fields.push(cur.trim()); cur = '' }
+            else if ((ch === '\n' || ch === '\r') && !inQ) {
+              if (ch === '\r' && next === '\n') i++
+              fields.push(cur.trim()); cur = ''
+              if (fields.some(f => f.length > 0)) records.push(fields); fields = []
+            } else { cur += ch }
+          }
+          if (cur || fields.length) { fields.push(cur.trim()); if (fields.some(f => f.length > 0)) records.push(fields) }
+          return records
+        }
+        const records = parseCSV(text)
+        if (records.length < 2) return {}
+        const headers = records[0]
+        const barcodeIdx = headers.findIndex(h => h.toLowerCase().includes('barcode'))
+        const whIdx = headers.findIndex(h => h.toLowerCase().includes('ware house') || h.toLowerCase().includes('warehouse'))
+        const storeIdx = headers.findIndex(h => h.toLowerCase() === 'store stock')
+        const vendorIdx = headers.findIndex(h => h.toLowerCase().includes('vendor article name'))
+        const itemIdx = headers.findIndex(h => h.toLowerCase() === 'item name')
+        const sizeIdx = headers.findIndex(h => h.toLowerCase() === 'size')
+        const mrpIdx = headers.findIndex(h => h.toLowerCase() === 'mrp')
+        const rspIdx = headers.findIndex(h => h.toLowerCase() === 'rsp')
+        const map = {}
+        records.slice(1).forEach(row => {
+          const bc = (row[barcodeIdx] || '').toString().trim().replace(/\.0$/, '')
+          if (bc) map[bc] = { vendor_article_name: row[vendorIdx] || '', item_name: row[itemIdx] || '', size: row[sizeIdx] || '', mrp: row[mrpIdx] || '', rsp: row[rspIdx] || '', wh_stock: row[whIdx] || '', store_stock: row[storeIdx] || '' }
+        })
+        return map
+      }
+
+      const cityMaps = {}
+      await Promise.all(cityTabs.map(async tab => { cityMaps[tab] = await fetchTab(tab) }))
+
+      // Fetch promo SKU file
+      const res = await fetch(r.sku_file_link)
+      const text = await res.text()
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+      if (lines.length < 2) { alert('SKU file is empty'); setSkuDownloading(false); return }
+      const headers = lines[0].split(',').map(h => h.trim())
+      const bcColIdx = headers.findIndex(h => h.toLowerCase().includes('barcode'))
+      const skuRows = lines.slice(1).map(line => {
+        const vals = line.split(','); const obj = {}
+        headers.forEach((h, i) => { obj[h] = (vals[i] || '').trim() })
+        return obj
+      }).filter(row => Object.values(row).some(v => v))
+
+      // Build enriched rows
+      const enriched = skuRows.map(row => {
+        const bc = (row[headers[bcColIdx]] || '').toString().trim()
+        const invData = Object.values(cityMaps).find(m => m[bc]) ? (Object.values(cityMaps).find(m => m[bc]))[bc] : {}
+        const out = { ...row, 'Vendor Article Name': invData.vendor_article_name || '', 'Item Name': invData.item_name || '', 'Size': invData.size || '', 'MRP': invData.mrp || '', 'RSP': invData.rsp || '' }
+        cityTabs.forEach(tab => {
+          const m = cityMaps[tab] || {}
+          out[`${tab} - WH Stock`] = (m[bc] || {}).wh_stock || ''
+          out[`${tab} - Store Stock`] = (m[bc] || {}).store_stock || ''
+        })
+        return out
+      })
+
+      // Download
+      const outHeaders = [...headers, 'Vendor Article Name', 'Item Name', 'Size', 'MRP', 'RSP', ...cityTabs.flatMap(t => [`${t} - WH Stock`, `${t} - Store Stock`])]
+      const csvLines = [
+        outHeaders.join(','),
+        ...enriched.map(row => outHeaders.map(h => {
+          const v = (row[h] == null ? '' : String(row[h]))
+          return v.includes(',') || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v
+        }).join(','))
+      ]
+      const blob = new Blob([csvLines.join('\n')], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = url
+      a.download = `${r.promo_request_id}_enriched_sku.csv`; a.click()
+      URL.revokeObjectURL(url)
+    } catch(e) { alert('Download failed: ' + e.message) }
+    setSkuDownloading(false)
+  }
 
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0]
@@ -620,9 +726,11 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
           </a>
         )}
         {r.sku_file_link && (
-          <a href={r.sku_file_link} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-accent hover:underline">
-            <ExternalLink size={9} /> SKU File
-          </a>
+          <button onClick={handleSkuDownload} disabled={skuDownloading}
+            className="flex items-center gap-1 text-accent hover:underline disabled:opacity-50 text-[11px] font-body">
+            {skuDownloading ? <Loader2 size={9} className="animate-spin" /> : <Download size={9} />}
+            {skuDownloading ? 'Downloading…' : 'SKU File'}
+          </button>
         )}
         {r.rsp_file_link && (
           <a href={r.rsp_file_link} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-accent hover:underline">
