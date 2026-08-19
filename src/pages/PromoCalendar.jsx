@@ -29,6 +29,7 @@ export default function TodayPromos() {
 
   const [campaigns, setCampaigns] = useState([])
   const [calTab, setCalTab] = useState('today')
+  const [liveExporting, setLiveExporting] = useState(false)
   const [liveCategory, setLiveCategory] = useState('All')
   const [liveBrand, setLiveBrand] = useState('')
   const [campFilter, setCampFilter] = useState('All')
@@ -118,6 +119,101 @@ export default function TodayPromos() {
     sku_file_url: r.sku_file_link || '',
     approval_url: r.approval_email || '',
   }))
+
+  const INVENTORY_SHEET_ID = '1Uo7OtHVekjsuTSfVodzUNqkL5dtOneM1GwPn85OG_gM'
+  const INV_CITY_TABS = ['VK Delhi', 'BH HYD', 'Pune', 'Mumbai']
+
+  const fetchInvTab = async (tabName) => {
+    const url = `https://docs.google.com/spreadsheets/d/${INVENTORY_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`
+    const res = await fetch(url)
+    if (!res.ok) return {}
+    const text = await res.text()
+    const parseCSV = csv => {
+      const records = []; let cur = '', inQ = false, fields = []
+      for (let i = 0; i < csv.length; i++) {
+        const ch = csv[i], next = csv[i+1]
+        if (ch === '"') { if (inQ && next === '"') { cur += '"'; i++ } else { inQ = !inQ } }
+        else if (ch === ',' && !inQ) { fields.push(cur.trim()); cur = '' }
+        else if ((ch === '\n' || ch === '\r') && !inQ) {
+          if (ch === '\r' && next === '\n') i++
+          fields.push(cur.trim()); cur = ''
+          if (fields.some(f => f.length > 0)) records.push(fields); fields = []
+        } else { cur += ch }
+      }
+      if (cur || fields.length) { fields.push(cur.trim()); if (fields.some(f => f.length > 0)) records.push(fields) }
+      return records
+    }
+    const records = parseCSV(text)
+    if (records.length < 2) return {}
+    const headers = records[0]
+    const barcodeIdx = headers.findIndex(h => h.toLowerCase().includes('barcode'))
+    const whIdx = headers.findIndex(h => h.toLowerCase().includes('ware house') || h.toLowerCase().includes('warehouse'))
+    const storeIdx = headers.findIndex(h => h.toLowerCase() === 'store stock')
+    const vendorIdx = headers.findIndex(h => h.toLowerCase().includes('vendor article name'))
+    const itemIdx = headers.findIndex(h => h.toLowerCase() === 'item name')
+    const sizeIdx = headers.findIndex(h => h.toLowerCase() === 'size')
+    const mrpIdx = headers.findIndex(h => h.toLowerCase() === 'mrp')
+    const rspIdx = headers.findIndex(h => h.toLowerCase() === 'rsp')
+    const map = {}
+    records.slice(1).forEach(row => {
+      const bc = (row[barcodeIdx] || '').toString().trim().replace(/\.0$/, '')
+      if (bc) map[bc] = { vendor_article_name: row[vendorIdx] || '', item_name: row[itemIdx] || '', size: row[sizeIdx] || '', mrp: row[mrpIdx] || '', rsp: row[rspIdx] || '', wh_stock: row[whIdx] || '', store_stock: row[storeIdx] || '' }
+    })
+    return map
+  }
+
+  const handleLiveExport = async () => {
+    setLiveExporting(true)
+    try {
+      const [delhiMap, hydMap, puneMap, mumbaiMap] = await Promise.all(INV_CITY_TABS.map(tab => fetchInvTab(tab)))
+      const rows = []
+      for (const r of liveTodayFiltered) {
+        const startDate = Array.isArray(r.date_ranges) && r.date_ranges[0] ? r.date_ranges[0].from : ''
+        const endDate = Array.isArray(r.date_ranges) && r.date_ranges[0] ? r.date_ranges[0].till : ''
+        if (r.sku_file_link) {
+          try {
+            const res = await fetch(r.sku_file_link)
+            const text = await res.text()
+            const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+            if (lines.length < 2) continue
+            const headers = lines[0].split(',').map(h => h.trim())
+            const bcColIdx = headers.findIndex(h => h.toLowerCase().includes('barcode'))
+            const skuRows = lines.slice(1).map(line => {
+              const vals = line.split(','); const obj = {}
+              headers.forEach((h, i) => { obj[h] = (vals[i] || '').trim() })
+              return obj
+            }).filter(r => Object.values(r).some(v => v))
+            for (const skuRow of skuRows) {
+              const bc = (skuRow[headers[bcColIdx]] || '').toString().trim()
+              const inv = delhiMap[bc] || hydMap[bc] || puneMap[bc] || mumbaiMap[bc] || {}
+              rows.push({
+                'Promo ID': r.promo_request_id, 'Brand': r.brand_names, 'Category': r.category,
+                'Store': r.store, 'Promotion': r.promotion_name, 'Details': r.promo_details,
+                'Start Date': startDate, 'End Date': endDate, 'Ginesys ID': r.ginesys_promo_id || '',
+                'Barcode': bc, 'Vendor Article Name': inv.vendor_article_name || '',
+                'Item Name': inv.item_name || '', 'Size': inv.size || '',
+                'MRP': inv.mrp || '', 'RSP': inv.rsp || '',
+                'VK Delhi - WH Stock': (delhiMap[bc] || {}).wh_stock || '',
+                'VK Delhi - Store Stock': (delhiMap[bc] || {}).store_stock || '',
+                'BH HYD - WH Stock': (hydMap[bc] || {}).wh_stock || '',
+                'BH HYD - Store Stock': (hydMap[bc] || {}).store_stock || '',
+                'Pune - WH Stock': (puneMap[bc] || {}).wh_stock || '',
+                'Pune - Store Stock': (puneMap[bc] || {}).store_stock || '',
+                'Mumbai - WH Stock': (mumbaiMap[bc] || {}).wh_stock || '',
+                'Mumbai - Store Stock': (mumbaiMap[bc] || {}).store_stock || '',
+              })
+            }
+          } catch(e) {
+            rows.push({ 'Promo ID': r.promo_request_id, 'Brand': r.brand_names, 'Category': r.category, 'Store': r.store, 'Promotion': r.promotion_name, 'Details': r.promo_details, 'Start Date': startDate, 'End Date': endDate, 'Ginesys ID': r.ginesys_promo_id || '', 'Barcode': '', 'Vendor Article Name': '', 'Item Name': '', 'Size': '', 'MRP': '', 'RSP': '', 'VK Delhi - WH Stock': '', 'VK Delhi - Store Stock': '', 'BH HYD - WH Stock': '', 'BH HYD - Store Stock': '', 'Pune - WH Stock': '', 'Pune - Store Stock': '', 'Mumbai - WH Stock': '', 'Mumbai - Store Stock': '' })
+          }
+        } else {
+          rows.push({ 'Promo ID': r.promo_request_id, 'Brand': r.brand_names, 'Category': r.category, 'Store': r.store, 'Promotion': r.promotion_name, 'Details': r.promo_details, 'Start Date': startDate, 'End Date': endDate, 'Ginesys ID': r.ginesys_promo_id || '', 'Barcode': '', 'Vendor Article Name': '', 'Item Name': '', 'Size': '', 'MRP': '', 'RSP': '', 'VK Delhi - WH Stock': '', 'VK Delhi - Store Stock': '', 'BH HYD - WH Stock': '', 'BH HYD - Store Stock': '', 'Pune - WH Stock': '', 'Pune - Store Stock': '', 'Mumbai - WH Stock': '', 'Mumbai - Store Stock': '' })
+        }
+      }
+      exportCSV(rows, `live-today-inventory-${today}.csv`)
+    } catch(e) { alert('Export failed: ' + e.message) }
+    setLiveExporting(false)
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 fade-in">
@@ -230,7 +326,8 @@ export default function TodayPromos() {
             rows={liveTodayFiltered}
             event="live"
             matchDate={today}
-            onExport={() => exportCSV(toExport(liveTodayFiltered), `live-today-${today}.csv`)}
+            onExport={handleLiveExport}
+            exporting={liveExporting}
             onPick={handlePick}
             currentUserEmail={user?.email}
             onPhotoUpdate={handlePhotoUpdate}
@@ -319,7 +416,7 @@ campaigns={campaigns}                 title="Ending Tomorrow"
   )
 }
 
-function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, onExport, onPick, currentUserEmail, campaigns = [], onPhotoUpdate }) {
+function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, onExport, exporting = false, onPick, currentUserEmail, campaigns = [], onPhotoUpdate }) {
   return (
     <div className="bg-white border border-border rounded-xl overflow-hidden">
       {/* Group header */}
@@ -330,9 +427,10 @@ function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, on
           <span className="font-mono text-xs text-muted">({rows.length})</span>
         </div>
         {rows.length > 0 && (
-          <button onClick={onExport}
-            className={`flex items-center gap-1 text-[11px] font-body font-medium px-2 py-1 rounded border ${bg} ${border} ${color} hover:opacity-70 transition-opacity`}>
-            <Download size={10} /> CSV
+          <button onClick={onExport} disabled={exporting}
+            className={`flex items-center gap-1 text-[11px] font-body font-medium px-2 py-1 rounded border ${bg} ${border} ${color} hover:opacity-70 transition-opacity disabled:opacity-50`}>
+            {exporting ? <Loader2 size={10} className="animate-spin" /> : <Download size={10} />}
+            {exporting ? '…' : 'CSV'}
           </button>
         )}
       </div>
