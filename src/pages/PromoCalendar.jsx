@@ -206,22 +206,22 @@ export default function TodayPromos() {
                 const invData = Object.values(cityMaps).find(m => m[bc]) ? Object.values(cityMaps).find(m => m[bc])[bc] : {}
                 const out = { ...row, 'Vendor Article Name': invData.vendor_article_name || '', 'Item Name': invData.item_name || '', 'Size': invData.size || '', 'MRP': invData.mrp || '', 'RSP': invData.rsp || '' }
                 cityTabs.forEach(tab => {
-                  out[\`\${tab} - WH Stock\`] = (cityMaps[tab][bc] || {}).wh_stock || ''
-                  out[\`\${tab} - Store Stock\`] = (cityMaps[tab][bc] || {}).store_stock || ''
+                  out[`${tab} - WH Stock`] = (cityMaps[tab][bc] || {}).wh_stock || ''
+                  out[`${tab} - Store Stock`] = (cityMaps[tab][bc] || {}).store_stock || ''
                 })
                 return out
               })
-              const outHeaders = [...headers, 'Vendor Article Name', 'Item Name', 'Size', 'MRP', 'RSP', ...cityTabs.flatMap(t => [\`\${t} - WH Stock\`, \`\${t} - Store Stock\`])]
+              const outHeaders = [...headers, 'Vendor Article Name', 'Item Name', 'Size', 'MRP', 'RSP', ...cityTabs.flatMap(t => [`${t} - WH Stock`, `${t} - Store Stock`])]
               const csvContent = [
                 outHeaders.join(','),
                 ...enriched.map(row => outHeaders.map(h => {
                   const v = row[h] == null ? '' : String(row[h])
-                  return v.includes(',') || v.includes('"') ? \`"\${v.replace(/"/g, '""')}"\` : v
+                  return v.includes(',') || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v
                 }).join(','))
               ].join('\n')
               const blob = new Blob([csvContent], { type: 'text/csv' })
               const safeId = (r.promo_request_id || '').replace(/[^a-zA-Z0-9]/g, '_')
-              const path = \`enriched/\${today}_\${safeId}.csv\`
+              const path = `enriched/${today}_${safeId}.csv`
               const { error } = await supabase.storage.from('promo-files').upload(path, blob, { upsert: true, contentType: 'text/csv' })
               if (!error) {
                 const { data: { publicUrl } } = supabase.storage.from('promo-files').getPublicUrl(path)
@@ -247,7 +247,7 @@ export default function TodayPromos() {
         })
       }
       setLiveExportProgress('Downloading...')
-      exportCSV(rows, \`live-today-\${today}.csv\`)
+      exportCSV(rows, `live-today-${today}.csv`)
     } catch(e) { alert('Export failed: ' + e.message) }
     setLiveExporting(false)
     setLiveExportProgress('')
