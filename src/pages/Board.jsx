@@ -62,6 +62,7 @@ export default function Board() {
   const [fOnline, setFOnline] = useState('All')
   const [fDateFrom, setFDateFrom] = useState('')
   const [fDateTo, setFDateTo] = useState('')
+  const [tier3Loaded, setTier3Loaded] = useState(false)
   const [campaigns, setCampaigns] = useState([])
 
   const COLS = 'id,promo_request_id,brand_names,category,store,poc_name,funded_by,offer_type,' +
@@ -108,6 +109,7 @@ export default function Board() {
       const ids = new Set(prev.map(r => r.id))
       return [...prev, ...tier3.filter(r => !ids.has(r.id))]
     })
+    setTier3Loaded(true)
   }, [])
 
 
@@ -247,9 +249,10 @@ export default function Board() {
               })
               exportCSV(toExport, `promo-board-export-${new Date().toISOString().split('T')[0]}.csv`)
             }}
-            disabled={!filtered.length}
+            disabled={!filtered.length || !tier3Loaded}
+            title={!tier3Loaded ? 'Still loading older promos — please wait' : ''}
             className="flex items-center gap-1.5 bg-white border border-border text-sm font-body px-3 py-2 rounded-lg hover:bg-paper disabled:opacity-40 transition-colors">
-            <Download size={14} className="text-muted" /> Export CSV
+            <Download size={14} className="text-muted" /> {tier3Loaded ? 'Export CSV' : 'Loading...'}
           </button>
           <Link to="/new" className="flex items-center gap-1.5 bg-accent text-white text-sm font-body font-medium px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors">
             <Plus size={13} /> New Request
