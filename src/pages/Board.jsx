@@ -207,7 +207,7 @@ export default function Board() {
           </button>
           <button
             onClick={() => {
-              const toExport = activeRows.flatMap(r => {
+              const toExport = (fDateFrom || fDateTo ? filtered : activeRows).flatMap(r => {
                 const ranges = Array.isArray(r.date_ranges) && r.date_ranges.length > 0
                   ? r.date_ranges : [{ from: '', till: '' }]
                 return ranges.map(dr => ({
