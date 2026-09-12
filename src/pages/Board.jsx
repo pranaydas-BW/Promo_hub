@@ -70,8 +70,8 @@ export default function Board() {
     'shopify_promo_status,ginesys_promo_id,shopify_discount_id,app_promo_id,' +
     'campaign_id,broadway_pct_split,brand_pct_split,broadway_discount_pct,' +
     'brand_discount_pct,broadway_discount_both,brand_discount_both,discount_on,' +
-    'sku_file_link,sku_file_name,sku_file_data,rsp_file_link,rsp_file_name,rsp_file_data,' +
-    'reversal_rsp_file_link,reversal_rsp_file_name,reversal_rsp_file_data,' +
+    'sku_file_link,sku_file_name,rsp_file_link,rsp_file_name,' +
+    'reversal_rsp_file_link,reversal_rsp_file_name,' +
     'approval_email,approval_file_name,picked_by,remark,cloned_from_id,' +
     'linked_promo_id,is_reversal,date_of_entry,post_creation_check,post_creation_check_by,post_creation_check_at,status_updated_by,status_updated_at,created_at,updated_at'
 
@@ -112,6 +112,15 @@ export default function Board() {
     setTier3Loaded(true)
   }, [])
 
+
+  const fetchAndDownload = useCallback(async (id, fileName, column) => {
+    const { data, error } = await supabase.from('promo_requests').select(column).eq('id', id).single()
+    if (error || !data?.[column]) {
+      alert('Could not load file data.')
+      return
+    }
+    downloadCsvFromData(fileName, data[column])
+  }, [])
 
   useEffect(() => {
     fetchRows()
@@ -682,8 +691,8 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
                     <div className="flex flex-wrap gap-2">
                       {/* Promotion SKU file */}
                       {!isRSPReversal && r.offer_type !== 'RSP Update' && r.sku_file_link && <ELink href={r.sku_file_link} label="SKU File" />}
-                      {!isRSPReversal && r.offer_type !== 'RSP Update' && r.sku_file_name && r.sku_file_data && (
-                        <button onClick={() => downloadCsvFromData(r.sku_file_name, r.sku_file_data)}
+                      {!isRSPReversal && r.offer_type !== 'RSP Update' && r.sku_file_name && (
+                        <button onClick={() => fetchAndDownload(r.id, r.sku_file_name, 'sku_file_data')}
                           className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
                           <Download size={11} /> {r.sku_file_name}
                         </button>
@@ -698,16 +707,16 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
                       )}
                       {/* RSP file */}
                       {r.offer_type === 'RSP Update' && !isRSPReversal && r.rsp_file_link && <ELink href={r.rsp_file_link} label="RSP File" />}
-                      {r.offer_type === 'RSP Update' && !isRSPReversal && r.rsp_file_name && r.rsp_file_data && (
-                        <button onClick={() => downloadCsvFromData(r.rsp_file_name, r.rsp_file_data)}
+                      {r.offer_type === 'RSP Update' && !isRSPReversal && r.rsp_file_name && (
+                        <button onClick={() => fetchAndDownload(r.id, r.rsp_file_name, 'rsp_file_data')}
                           className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
                           <Download size={11} /> {r.rsp_file_name}
                         </button>
                       )}
                       {/* Reversal file */}
                       {isRSPReversal && r.rsp_file_link && <ELink href={r.rsp_file_link} label="Reversal RSP File" />}
-                      {isRSPReversal && r.rsp_file_name && r.rsp_file_data && (
-                        <button onClick={() => downloadCsvFromData(r.rsp_file_name, r.rsp_file_data)}
+                      {isRSPReversal && r.rsp_file_name && (
+                        <button onClick={() => fetchAndDownload(r.id, r.rsp_file_name, 'rsp_file_data')}
                           className="flex items-center gap-1.5 text-xs font-body text-accent hover:underline">
                           <Download size={11} /> {r.rsp_file_name}
                         </button>
