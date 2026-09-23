@@ -336,7 +336,18 @@ export default function TodayPromos() {
     wh: selectedCityTab ? (x.stock?.[selectedCityTab]?.wh || '') : '',
     store: selectedCityTab ? (x.stock?.[selectedCityTab]?.store || '') : '',
   }))
-  const selectedSkuRows = dailyRowsForCity.filter(x => x.sku !== 'ALL SKUs')
+  const selectedSkuRows = dailyRowsForCity
+    .filter(x => x.sku !== 'ALL SKUs')
+    .filter(x => {
+      // Hide rows where both WH and Store stock are confirmed zero/negative.
+      // Blank/unmatched stock (no inventory row found at all) is left visible —
+      // that's a data-gap case, not a "known zero stock" case.
+      const wh = parseFloat(x.wh)
+      const st = parseFloat(x.store)
+      const whIsZero = !isNaN(wh) && wh <= 0
+      const stIsZero = !isNaN(st) && st <= 0
+      return !(whIsZero && stIsZero)
+    })
   const allSkuRows = dailyRowsForCity.filter(x => x.sku === 'ALL SKUs')
 
   // New promo_requests live today, created after the cached file was last synced.

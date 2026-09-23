@@ -5,8 +5,8 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        entryFileNames: `assets/[name]-[hash]-v103.js`,
-        chunkFileNames: `assets/[name]-[hash]-v103.js`,
+        entryFileNames: `assets/[name]-[hash]-v104.js`,
+        chunkFileNames: `assets/[name]-[hash]-v104.js`,
       }
     }
   }
