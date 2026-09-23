@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { exportCSV, todayISO, fmtDate } from '../lib/constants.jsx'
 import { Download, Loader2, TrendingUp, AlertTriangle, Star, ExternalLink } from 'lucide-react'
+import { useSettings } from '../lib/SettingsContext'
 
 const CATEGORIES = [
   'All Categories',
@@ -71,6 +72,7 @@ export default function Analytics() {
   const [monthFilter, setMonthFilter] = useState(6)
   const [storeFilter, setStoreFilter] = useState('All')
   const [campaigns, setCampaigns] = useState([])
+  const { hideCampaigns } = useSettings()
   const [campFilter, setCampFilter] = useState('All')
   const [onlineFilter, setOnlineFilter] = useState('All')
   const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split('T')[0])
@@ -484,7 +486,7 @@ export default function Analytics() {
           <option value="Offline">Offline</option>
         </select>
 
-        {campaigns.length > 0 && (
+        {!hideCampaigns && campaigns.length > 0 && (
           <select
             className="bg-white border border-border rounded-lg px-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-accent/20"
             value={campFilter} onChange={e => setCampFilter(e.target.value)}

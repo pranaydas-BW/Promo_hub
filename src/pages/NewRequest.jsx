@@ -5,6 +5,7 @@ import {
   FUNDED_BY_OPTIONS, ASSORTMENT_TYPES, todayISO,
 } from '../lib/constants.jsx'
 import { Section, Field, StoreToggle } from '../components/FormParts'
+import { useSettings } from '../lib/SettingsContext'
 import {
   CheckCircle, AlertCircle, Loader2, Plus, Trash2,
   Search, X, ArrowLeft, FileText, Copy, Download, FileSpreadsheet,
@@ -401,6 +402,7 @@ export default function NewRequest() {
 
   // ── Sale campaigns ──────────────────────────────────────────────────────────
   const [activeCampaigns, setActiveCampaigns] = useState([])
+  const { hideCampaigns } = useSettings()
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10)
     supabase.from('sale_campaigns')
@@ -1020,7 +1022,7 @@ export default function NewRequest() {
             </div>
           )}
 
-          {activeCampaigns.length > 0 && (
+          {!hideCampaigns && activeCampaigns.length > 0 && (
             <Field label="Sale Campaign" hint="Tag this promo to an active sale campaign">
               <select className="input-field" value={form.campaign_id} onChange={e => set('campaign_id', e.target.value || null)}>
                 <option value="">— No campaign —</option>

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
+import { useSettings } from '../lib/SettingsContext'
 import { Loader2, Trash2, Plus, ShieldCheck, AlertCircle, Tag, Calendar } from 'lucide-react'
 
 export default function AdminPage() {
   const { user, isAdmin } = useAuth()
+  const { hideCampaigns, setHideCampaigns, loading: settingsLoading } = useSettings()
 
   // ── Admin management ────────────────────────────────────────────────────────
   const [admins, setAdmins] = useState([])
@@ -115,6 +117,24 @@ export default function AdminPage() {
             <Tag size={24} className="text-accent" /> Sale Campaigns
           </h1>
           <p className="text-muted text-sm font-body mt-0.5">Active campaigns appear as a tag option in New Request form.</p>
+        </div>
+
+        {/* Hide campaigns app-wide */}
+        <div className="bg-white border border-border rounded-xl p-5 mb-6 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-body font-medium text-ink">Hide campaign filters app-wide</p>
+            <p className="text-xs text-muted font-body mt-0.5">
+              Hides the Campaign filter on Store View, Board, and Analytics, and the Sale Campaign field on New Request — for everyone, including non-admins.
+            </p>
+          </div>
+          <button
+            onClick={() => setHideCampaigns(!hideCampaigns)}
+            disabled={settingsLoading}
+            role="switch"
+            aria-checked={hideCampaigns}
+            className={`shrink-0 relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 ${hideCampaigns ? 'bg-accent' : 'bg-border'}`}>
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${hideCampaigns ? 'translate-x-5' : ''}`} />
+          </button>
         </div>
 
         {/* Add campaign */}

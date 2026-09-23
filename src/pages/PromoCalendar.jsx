@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
+import { useSettings } from '../lib/SettingsContext'
 import { StatusBadge, CurrentStatusDot, exportCSV, fmtDate, todayISO } from '../lib/constants.jsx'
 import { Download, RefreshCw, CalendarCheck, CalendarX, Loader2, ExternalLink, Store, Tag, ChevronDown, ChevronRight } from 'lucide-react'
 
@@ -22,6 +23,7 @@ function isNew(row) {
 
 export default function TodayPromos() {
   const { user } = useAuth()
+  const { hideCampaigns } = useSettings()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [store, setStore] = useState('All')
@@ -430,7 +432,7 @@ export default function TodayPromos() {
       </div>
 
       {/* Campaign filter */}
-      {campaigns.length > 0 && (
+      {!hideCampaigns && campaigns.length > 0 && (
         <div className="flex items-center gap-3 mb-4">
           <div className="flex items-center gap-1.5 text-xs font-mono text-muted uppercase tracking-widest">
             <Tag size={12} /> Campaign

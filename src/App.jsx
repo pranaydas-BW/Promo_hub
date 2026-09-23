@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './lib/AuthContext'
+import { SettingsProvider } from './lib/SettingsContext'
 import Navbar from './components/Navbar'
 import Login from './pages/Login'
 import Board from './pages/Board'
@@ -89,7 +90,9 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <SettingsProvider>
+        <AppRoutes />
+      </SettingsProvider>
     </AuthProvider>
   )
 }

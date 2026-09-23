@@ -8,6 +8,7 @@ import {
 } from '../lib/constants.jsx'
 import { Search, RefreshCw, Plus, ChevronDown, ExternalLink, Loader2, Filter, Download, RotateCcw, Pencil, History, X, Check, Upload } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
+import { useSettings } from '../lib/SettingsContext'
 import { StatusPanel } from '../components/StatusPanel'
 import { SkuReUpload } from '../components/SkuReUpload'
 
@@ -49,6 +50,7 @@ function groupByStartDate(rows) {
 
 export default function Board() {
   const { isAdmin, user } = useAuth()
+  const { hideCampaigns } = useSettings()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -340,7 +342,7 @@ export default function Board() {
           <option value="Online">Online</option>
           <option value="Offline">Offline</option>
         </select>
-        {campaigns.length > 0 && (
+        {!hideCampaigns && campaigns.length > 0 && (
           <select className="bg-white border border-border rounded-lg px-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-accent/20"
             value={fCampaign} onChange={e => setFCampaign(e.target.value)}>
             <option value="All">All Campaigns</option>
