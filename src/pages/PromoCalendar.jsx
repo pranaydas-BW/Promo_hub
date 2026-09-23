@@ -33,6 +33,9 @@ export default function TodayPromos() {
   const [liveCategory, setLiveCategory] = useState('All')
   const [liveBrand, setLiveBrand] = useState('')
   const [campFilter, setCampFilter] = useState('All')
+  const [byCity, setByCity] = useState('VK, Delhi')
+  const [byCityRows, setByCityRows] = useState([])
+  const [byCityLoading, setByCityLoading] = useState(false)
 
   useEffect(() => {
     // Fetch campaigns only once on mount
@@ -253,6 +256,70 @@ export default function TodayPromos() {
     setLiveExportProgress('')
   }
 
+  const BY_CITY_OPTIONS = [
+    { label: 'VK, Delhi', tab: 'VK Delhi' },
+    { label: 'BH, Hyderabad', tab: 'BH HYD' },
+    { label: 'Pune', tab: 'Pune' },
+    { label: 'Mumbai', tab: 'Mumbai' },
+  ]
+
+  const loadByCity = async (cityLabel) => {
+    setByCityLoading(true)
+    try {
+      const tab = BY_CITY_OPTIONS.find(c => c.label === cityLabel)?.tab || 'VK Delhi'
+      const invMap = await fetchInvTab(tab)
+      const out = []
+      for (const r of liveTodayFiltered) {
+        const endDate = Array.isArray(r.date_ranges) && r.date_ranges[0] ? r.date_ranges[0].till : ''
+        if (r.assortment_type === 'Selected SKUs' && r.sku_file_link) {
+          try {
+            const res = await fetch(r.sku_file_link)
+            const text = await res.text()
+            const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+            if (lines.length >= 2) {
+              const headers = lines[0].split(',').map(h => h.trim())
+              const bcIdx = headers.findIndex(h => h.toLowerCase().includes('barcode'))
+              lines.slice(1).forEach(line => {
+                const vals = line.split(',')
+                const bc = (vals[bcIdx] || '').trim()
+                const inv = invMap[bc] || {}
+                out.push({
+                  brand: r.brand_names, promo: r.promotion_name, sku: bc,
+                  mrp: inv.mrp || '', rsp: inv.rsp || '',
+                  wh: inv.wh_stock || '', store: inv.store_stock || '',
+                  till: endDate,
+                })
+              })
+            }
+          } catch (e) { /* skip this promo's SKU rows if its file can't be fetched */ }
+        } else {
+          out.push({ brand: r.brand_names, promo: r.promotion_name, sku: 'ALL SKUs', mrp: '', rsp: '', wh: '', store: '', till: endDate })
+        }
+      }
+      setByCityRows(out)
+    } finally {
+      setByCityLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (calTab === 'byCity') loadByCity(byCity)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calTab, byCity, rows.length, liveCategory, liveBrand])
+
+  const handleByCityExport = () => {
+    const csvRows = byCityRows.map(x => ({
+      Brand: x.brand || '',
+      Promotion: x.promo || '',
+      'SKU / Assortment': x.sku,
+      MRP: x.mrp,
+      RSP: x.rsp,
+      'WH Stock': x.wh,
+      'Store Stock': x.store,
+      'Live Till': x.till,
+    }))
+    exportCSV(csvRows, `store-view-${byCity.replace(/[^a-zA-Z0-9]/g, '_')}-${today}.csv`)
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 fade-in">
@@ -323,6 +390,10 @@ export default function TodayPromos() {
           className={`px-4 py-1.5 rounded-lg text-xs font-body border transition-colors ${calTab === 'live' ? 'bg-ink text-white border-ink' : 'bg-white text-muted border-border hover:text-ink'}`}>
           Live Today ({liveToday.length})
         </button>
+        <button onClick={() => setCalTab('byCity')}
+          className={`px-4 py-1.5 rounded-lg text-xs font-body border transition-colors ${calTab === 'byCity' ? 'bg-ink text-white border-ink' : 'bg-white text-muted border-border hover:text-ink'}`}>
+          By City
+        </button>
       </div>
 
       {loading ? (
@@ -373,6 +444,74 @@ export default function TodayPromos() {
             onPhotoUpdate={handlePhotoUpdate}
             storeFilter={store}
           />
+        </div>
+      ) : calTab === 'byCity' ? (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex gap-1.5">
+              {BY_CITY_OPTIONS.map(c => (
+                <button key={c.label} onClick={() => setByCity(c.label)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-body border transition-colors ${
+                    byCity === c.label
+                      ? 'bg-ink text-white border-ink'
+                      : 'bg-white text-muted border-border hover:text-ink hover:border-ink'
+                  }`}>
+                  {c.label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={handleByCityExport}
+              disabled={byCityLoading || !byCityRows.length}
+              className="flex items-center gap-1.5 bg-white border border-border text-sm font-body px-3 py-2 rounded-lg hover:bg-paper disabled:opacity-40 transition-colors">
+              <Download size={14} className="text-muted" /> Export CSV
+            </button>
+          </div>
+
+          {byCityLoading ? (
+            <div className="flex justify-center items-center h-48 gap-2 text-muted">
+              <Loader2 size={18} className="animate-spin" />
+              <span className="text-sm">Loading stock for {byCity}…</span>
+            </div>
+          ) : (
+            <div className="bg-white border border-border rounded-xl overflow-hidden">
+              <table className="w-full text-sm font-body">
+                <thead>
+                  <tr className="bg-paper text-[11px] uppercase tracking-wide text-muted">
+                    <th className="text-left px-4 py-2.5">Brand</th>
+                    <th className="text-left px-4 py-2.5">Promotion</th>
+                    <th className="text-left px-4 py-2.5">SKU / Assortment</th>
+                    <th className="text-left px-4 py-2.5">MRP</th>
+                    <th className="text-left px-4 py-2.5">RSP</th>
+                    <th className="text-left px-4 py-2.5">WH Stock</th>
+                    <th className="text-left px-4 py-2.5">Store Stock</th>
+                    <th className="text-left px-4 py-2.5">Live Till</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {byCityRows.map((x, i) => (
+                    <tr key={i} className="border-t border-border">
+                      <td className="px-4 py-2.5 font-medium text-ink">{x.brand}</td>
+                      <td className="px-4 py-2.5">{x.promo}</td>
+                      <td className="px-4 py-2.5">
+                        {x.sku === 'ALL SKUs'
+                          ? <span className="bg-paper text-muted rounded px-2 py-0.5 text-[11px] font-semibold tracking-wide">ALL SKUs</span>
+                          : <span className="font-mono text-xs text-ink">{x.sku}</span>}
+                      </td>
+                      <td className="px-4 py-2.5">{x.mrp || <span className="text-muted">—</span>}</td>
+                      <td className="px-4 py-2.5">{x.rsp || <span className="text-muted">—</span>}</td>
+                      <td className="px-4 py-2.5">{x.wh || <span className="text-muted">—</span>}</td>
+                      <td className="px-4 py-2.5">{x.store || <span className="text-muted">—</span>}</td>
+                      <td className="px-4 py-2.5">{fmtDate(x.till)}</td>
+                    </tr>
+                  ))}
+                  {!byCityRows.length && (
+                    <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">No live promos found.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-8">
