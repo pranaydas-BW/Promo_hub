@@ -6,7 +6,7 @@ import { useSettings } from '../lib/SettingsContext'
 import { StatusBadge, CurrentStatusDot, exportCSV, fmtDate, todayISO } from '../lib/constants.jsx'
 import { Download, RefreshCw, CalendarCheck, CalendarX, Loader2, ExternalLink, Store, Tag, ChevronDown, ChevronRight } from 'lucide-react'
 
-const STORES = ['All', 'VK, Delhi', 'BH, Hyderabad', 'Pune', 'Mumbai']
+const STORES = ['VK, Delhi', 'BH, Hyderabad', 'Pune', 'Mumbai']
 
 function addDays(dateStr, n) {
   const d = new Date(dateStr)
@@ -26,7 +26,7 @@ export default function TodayPromos() {
   const { hideCampaigns } = useSettings()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
-  const [store, setStore] = useState('All')
+  const [store, setStore] = useState('VK, Delhi')
   const today = todayISO()
   const tomorrow = addDays(today, 1)
 
@@ -770,8 +770,9 @@ export default function TodayPromos() {
           </div>
 
           <div className="bg-white border border-border rounded-xl overflow-hidden">
-            <div className="grid grid-cols-[1fr_repeat(4,110px)] bg-paper text-[11px] uppercase tracking-wide text-muted px-4 py-2.5">
+            <div className="grid grid-cols-[1fr_repeat(5,110px)] bg-paper text-[11px] uppercase tracking-wide text-muted px-4 py-2.5">
               <div>Category</div>
+              <div className="text-center">Total</div>
               <div className="text-center">Picked Today</div>
               <div className="text-center">Photo Today</div>
               <div className="text-center">Picked (7d)</div>
@@ -781,12 +782,12 @@ export default function TodayPromos() {
               <div key={cat} className="border-t border-border">
                 <button
                   onClick={() => setOpenCategories(prev => ({ ...prev, [cat]: !prev[cat] }))}
-                  className="w-full grid grid-cols-[1fr_repeat(4,110px)] items-center px-4 py-2.5 text-sm font-body hover:bg-paper/60 transition-colors">
+                  className="w-full grid grid-cols-[1fr_repeat(5,110px)] items-center px-4 py-2.5 text-sm font-body hover:bg-paper/60 transition-colors">
                   <span className="flex items-center gap-2 text-left">
                     {openCategories[cat] ? <ChevronDown size={13} className="text-muted" /> : <ChevronRight size={13} className="text-muted" />}
                     <span className="font-medium text-ink">{cat}</span>
-                    <span className="text-xs text-muted">({stats.total})</span>
                   </span>
+                  <span className="text-center font-medium text-ink">{stats.total}</span>
                   <span className="text-center">{stats.todayPicked}/{stats.total}</span>
                   <span className="text-center">{stats.todayPhoto}/{stats.total}</span>
                   <span className="text-center">{stats.weekPicked}/{stats.total}</span>
@@ -795,8 +796,9 @@ export default function TodayPromos() {
                 {openCategories[cat] && (
                   <div className="bg-paper/40">
                     {Object.entries(stats.brands).sort((a, b) => b[1].total - a[1].total).map(([brand, bstats]) => (
-                      <div key={brand} className="grid grid-cols-[1fr_repeat(4,110px)] items-center px-4 py-2 pl-10 text-sm font-body border-t border-border/60">
-                        <span className="text-ink">{brand} <span className="text-xs text-muted">({bstats.total})</span></span>
+                      <div key={brand} className="grid grid-cols-[1fr_repeat(5,110px)] items-center px-4 py-2 pl-10 text-sm font-body border-t border-border/60">
+                        <span className="text-ink">{brand}</span>
+                        <span className="text-center text-ink">{bstats.total}</span>
                         <span className="text-center text-muted">{bstats.todayPicked}/{bstats.total}</span>
                         <span className="text-center text-muted">{bstats.todayPhoto}/{bstats.total}</span>
                         <span className="text-center text-muted">{bstats.weekPicked}/{bstats.total}</span>
