@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { StatusBadge, CurrentStatusDot, exportCSV, fmtDate, todayISO } from '../lib/constants.jsx'
@@ -344,17 +345,30 @@ export default function TodayPromos() {
     : 0
 
   const handleByCityExport = () => {
-    const csvRows = dailyRowsForCity.map(x => ({
-      Brand: x.brand || '',
-      Promotion: x.promo || '',
-      'SKU / Assortment': x.sku,
-      MRP: x.mrp,
-      RSP: x.rsp,
-      'WH Stock': x.wh,
-      'Store Stock': x.store,
-      'Live Till': x.till,
-    }))
-    exportCSV(csvRows, `daily-file-${byCity.replace(/[^a-zA-Z0-9]/g, '_')}-${today}.csv`)
+    const selectedSkuRows = dailyRowsForCity
+      .filter(x => x.sku !== 'ALL SKUs')
+      .map(x => ({
+        Brand: x.brand || '',
+        Promotion: x.promo || '',
+        SKU: x.sku,
+        MRP: x.mrp,
+        RSP: x.rsp,
+        'WH Stock': x.wh,
+        'Store Stock': x.store,
+        'Live Till': x.till,
+      }))
+    const allSkuRows = dailyRowsForCity
+      .filter(x => x.sku === 'ALL SKUs')
+      .map(x => ({
+        Brand: x.brand || '',
+        Promotion: x.promo || '',
+        'Live Till': x.till,
+      }))
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(selectedSkuRows), 'Selected SKUs')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allSkuRows), 'All SKUs')
+    XLSX.writeFile(wb, `daily-file-${byCity.replace(/[^a-zA-Z0-9]/g, '_')}-${today}.xlsx`)
   }
 
   return (
@@ -524,7 +538,7 @@ export default function TodayPromos() {
               onClick={handleByCityExport}
               disabled={dailyFileLoading || !dailyRowsForCity.length}
               className="flex items-center gap-1.5 bg-white border border-border text-sm font-body px-3 py-2 rounded-lg hover:bg-paper disabled:opacity-40 transition-colors">
-              <Download size={14} className="text-muted" /> Export CSV
+              <Download size={14} className="text-muted" /> Download Excel
             </button>
           </div>
 
