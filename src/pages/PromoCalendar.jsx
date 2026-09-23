@@ -268,12 +268,19 @@ export default function TodayPromos() {
   const CITY_TABS = BY_CITY_OPTIONS.map(c => c.tab)
 
   // Builds one combined dataset (all 4 cities' stock) — used by both the manual
-  // "Sync again" button here and, in principle, mirrors what the 6 AM Apps Script job does server-side.
+  // "Sync again" button here and mirrors what the Edge Function does server-side at 6 AM.
+  // IMPORTANT: must use an UNFILTERED list of live-today offline promos, not liveTodayFiltered —
+  // this cache is shared across every viewer/city, so it must not depend on whatever Store,
+  // Category, Brand, or Campaign filter happens to be set in the UI at the moment of syncing.
   const buildCombinedDailyRows = async () => {
+    const allLiveTodayOffline = rows.filter(r =>
+      (r.store || '') !== 'Online' &&
+      Array.isArray(r.date_ranges) && r.date_ranges.some(dr => dr.from <= today && dr.till >= today)
+    )
     const cityMaps = {}
     await Promise.all(CITY_TABS.map(async tab => { cityMaps[tab] = await fetchInvTab(tab) }))
     const out = []
-    for (const r of liveTodayFiltered) {
+    for (const r of allLiveTodayOffline) {
       const endDate = Array.isArray(r.date_ranges) && r.date_ranges[0] ? r.date_ranges[0].till : ''
       if (r.assortment_type === 'Selected SKUs' && r.sku_file_link) {
         try {
