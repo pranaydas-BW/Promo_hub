@@ -74,7 +74,6 @@ export default function TodayPromos() {
     row.date_ranges.some(dr => dr[field] === date)
 
   const matchStore = (row) => {
-    if (store === 'All') return true
     return (row.store || '').includes(store)
   }
 
@@ -130,25 +129,32 @@ export default function TodayPromos() {
     })
   }
 
-  const toExport = (list) => list.map(r => ({
-    promo_request_id: r.promo_request_id || '',
-    brand_names: r.brand_names || '',
-    category: r.category || '',
-    store: r.store || '',
-    poc_name: r.poc_name || '',
-    promotion_name: r.promotion_name || '',
-    promo_details: r.promo_details || '',
-    offer_type: r.offer_type || '',
-    funded_by: r.funded_by || '',
-    date_ranges: JSON.stringify(r.date_ranges),
-    status: r.status || '',
-    current_status: r.current_status || '',
-    picked_by: r.picked_by || '',
-    ginesys_promo_id: r.ginesys_promo_id || '',
-    shopify_discount_id: r.shopify_discount_id || '',
-    sku_file_url: r.sku_file_link || '',
-    approval_url: r.approval_email || '',
-  }))
+  const toExport = (list) => list.map(r => {
+    const cs = cityStatusMap[`${r.id}|${store}`]
+    return {
+      promo_request_id: r.promo_request_id || '',
+      brand_names: r.brand_names || '',
+      category: r.category || '',
+      store: r.store || '',
+      poc_name: r.poc_name || '',
+      promotion_name: r.promotion_name || '',
+      promo_details: r.promo_details || '',
+      offer_type: r.offer_type || '',
+      funded_by: r.funded_by || '',
+      date_ranges: JSON.stringify(r.date_ranges),
+      status: r.status || '',
+      current_status: r.current_status || '',
+      picked_city: store,
+      picked_by: cs?.picked_by || '',
+      picked_at: cs?.picked_at || '',
+      photo_url: cs?.photo_url || '',
+      photo_date: cs?.photo_date || '',
+      ginesys_promo_id: r.ginesys_promo_id || '',
+      shopify_discount_id: r.shopify_discount_id || '',
+      sku_file_url: r.sku_file_link || '',
+      approval_url: r.approval_email || '',
+    }
+  })
 
   const INVENTORY_SHEET_ID = '1Uo7OtHVekjsuTSfVodzUNqkL5dtOneM1GwPn85OG_gM'
   const INV_CITY_TABS = ['VK Delhi', 'BH HYD', 'Pune', 'Mumbai']
@@ -361,11 +367,11 @@ export default function TodayPromos() {
 
   // Which city's stock columns to show — driven by the top Store filter, not a separate selector.
   // 'All' has no single city's stock to show, so WH/Store stock stay blank in that case.
-  const selectedCityTab = BY_CITY_OPTIONS.find(c => c.label === store)?.tab || null
+  const selectedCityTab = BY_CITY_OPTIONS.find(c => c.label === store)?.tab || BY_CITY_OPTIONS[0].tab
   const dailyRowsForCity = (dailyFile?.data || []).map(x => ({
     ...x,
-    wh: selectedCityTab ? (x.stock?.[selectedCityTab]?.wh || '') : '',
-    store: selectedCityTab ? (x.stock?.[selectedCityTab]?.store || '') : '',
+    wh: x.stock?.[selectedCityTab]?.wh || '',
+    store: x.stock?.[selectedCityTab]?.store || '',
   }))
   const selectedSkuRows = dailyRowsForCity
     .filter(x => x.sku !== 'ALL SKUs')
@@ -378,12 +384,12 @@ export default function TodayPromos() {
     })
   const allSkuRows = dailyRowsForCity.filter(x => x.sku === 'ALL SKUs')
 
-  // New promo_requests live today, created after the cached file was last synced.
-  // When the top filter is a specific city, scope to that city's promos; 'All' covers every city.
+  // New promo_requests live today, created after the cached file was last synced,
+  // scoped to the currently selected city.
   const pendingSyncCount = dailyFile
     ? rows.filter(r =>
         isOffline(r) &&
-        (store === 'All' || (r.store || '').includes(store)) &&
+        (r.store || '').includes(store) &&
         Array.isArray(r.date_ranges) && r.date_ranges.some(dr => dr.from <= today && dr.till >= today) &&
         r.created_at && new Date(r.created_at) > new Date(dailyFile.synced_at)
       ).length
@@ -419,10 +425,8 @@ export default function TodayPromos() {
   }
 
   // ── Pick & Photo Analytics ────────────────────────────────────────────────
-  // NOTE: "picked" and "photo taken" are recorded once per promo row, not per city —
-  // a promo live in multiple stores shares one picked_at/store_photo_date. So this is
-  // "of the promos live in the selected city today, how many are marked picked/photographed",
-  // not a true per-city attribution of who actually did it.
+  // Picked/photo status is tracked per (promo, city) via promo_city_status.
+  // This tab is always scoped to the currently selected city in the top Store filter.
   const sevenDaysAgoISO = (() => {
     const d = new Date()
     d.setDate(d.getDate() - 6)
@@ -432,37 +436,24 @@ export default function TodayPromos() {
   const pickPhotoBase = rows.filter(r =>
     (r.store || '') !== 'Online' &&
     Array.isArray(r.date_ranges) && r.date_ranges.some(dr => dr.from <= today && dr.till >= today) &&
-    (store === 'All' || (r.store || '').includes(store))
+    (r.store || '').includes(store)
   )
 
-  const getCityStatusesFor = r => cityStatus.filter(cs => cs.promo_id === r.id)
   const isPickedToday = r => {
-    if (store !== 'All') {
-      const cs = cityStatusMap[`${r.id}|${store}`]
-      return !!(cs?.picked_at && cs.picked_at.split('T')[0] === today)
-    }
-    return getCityStatusesFor(r).some(cs => cs.picked_at && cs.picked_at.split('T')[0] === today)
+    const cs = cityStatusMap[`${r.id}|${store}`]
+    return !!(cs?.picked_at && cs.picked_at.split('T')[0] === today)
   }
   const isPickedWeek = r => {
-    if (store !== 'All') {
-      const cs = cityStatusMap[`${r.id}|${store}`]
-      return !!(cs?.picked_at && cs.picked_at.split('T')[0] >= sevenDaysAgoISO && cs.picked_at.split('T')[0] <= today)
-    }
-    return getCityStatusesFor(r).some(cs => cs.picked_at && cs.picked_at.split('T')[0] >= sevenDaysAgoISO && cs.picked_at.split('T')[0] <= today)
+    const cs = cityStatusMap[`${r.id}|${store}`]
+    return !!(cs?.picked_at && cs.picked_at.split('T')[0] >= sevenDaysAgoISO && cs.picked_at.split('T')[0] <= today)
   }
   const isPhotoToday = r => {
-    if (store !== 'All') {
-      const cs = cityStatusMap[`${r.id}|${store}`]
-      return cs?.photo_date === today
-    }
-    return getCityStatusesFor(r).some(cs => cs.photo_date === today)
+    const cs = cityStatusMap[`${r.id}|${store}`]
+    return cs?.photo_date === today
   }
   const isPhotoWeek = r => {
-    if (store !== 'All') {
-      const cs = cityStatusMap[`${r.id}|${store}`]
-      return !!(cs?.photo_date && cs.photo_date >= sevenDaysAgoISO && cs.photo_date <= today)
-    }
-    return getCityStatusesFor(r).some(cs => cs.photo_date && cs.photo_date >= sevenDaysAgoISO && cs.photo_date <= today)
+    const cs = cityStatusMap[`${r.id}|${store}`]
+    return !!(cs?.photo_date && cs.photo_date >= sevenDaysAgoISO && cs.photo_date <= today)
   }
 
   const blankStats = () => ({ total: 0, todayPicked: 0, todayPhoto: 0, weekPicked: 0, weekPhoto: 0 })
@@ -643,9 +634,7 @@ export default function TodayPromos() {
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs font-body text-muted">
-              {selectedCityTab
-                ? <>Showing stock for <span className="text-ink font-medium">{store}</span> — change city using the Store filter above</>
-                : <>Store filter is "All" — WH/Store stock is city-specific, so pick a city above to see stock numbers</>}
+              Showing stock for <span className="text-ink font-medium">{store}</span> — change city using the Store filter above
             </div>
             <button
               onClick={handleByCityExport}
@@ -766,7 +755,7 @@ export default function TodayPromos() {
         <div className="space-y-4">
           <div className="text-xs font-body text-muted bg-white border border-border rounded-xl px-4 py-3">
             Showing <span className="text-ink font-medium">{store}</span> · {pickPhotoBase.length} live promos today.
-            Picked/photo status is now tracked per city. With Store set to a specific city, counts reflect that city only; with "All", a promo counts if picked/photographed in any of the cities it's live in. Marks recorded before this change are shown separately on each card as "Legacy" and aren't included here.
+            Picked/photo status is tracked per city — counts below reflect the city selected in the Store filter above. Marks recorded before this change are shown separately on each card as "Legacy" and aren't included here.
           </div>
 
           <div className="bg-white border border-border rounded-xl overflow-hidden">
