@@ -291,12 +291,12 @@ export default function TodayPromos() {
               CITY_TABS.forEach(tab => {
                 stock[tab] = { wh: (cityMaps[tab][bc] || {}).wh_stock || '', store: (cityMaps[tab][bc] || {}).store_stock || '' }
               })
-              out.push({ brand: r.brand_names, promo: r.promotion_name, sku: bc, mrp: anyInv.mrp || '', rsp: anyInv.rsp || '', stock, till: endDate })
+              out.push({ brand: r.brand_names, promo: r.promotion_name, sku: bc, mrp: anyInv.mrp || '', rsp: anyInv.rsp || '', stock, till: endDate, category: r.category || '', details: r.promo_details || '', ginesys: r.ginesys_promo_id || '' })
             })
           }
         } catch (e) { /* skip this promo's SKU rows if its file can't be fetched */ }
       } else {
-        out.push({ brand: r.brand_names, promo: r.promotion_name, sku: 'ALL SKUs', mrp: '', rsp: '', stock: {}, till: endDate })
+        out.push({ brand: r.brand_names, promo: r.promotion_name, sku: 'ALL SKUs', mrp: '', rsp: '', stock: {}, till: endDate, category: r.category || '', details: r.promo_details || '', ginesys: r.ginesys_promo_id || '' })
       }
     }
     return out
@@ -362,6 +362,9 @@ export default function TodayPromos() {
     const selectedSkuExport = selectedSkuRows.map(x => ({
       Brand: x.brand || '',
       Promotion: x.promo || '',
+      Category: x.category || '',
+      'Promo Details': x.details || '',
+      'Ginesys Promo ID': x.ginesys || '',
       SKU: x.sku,
       MRP: x.mrp,
       RSP: x.rsp,
@@ -372,6 +375,9 @@ export default function TodayPromos() {
     const allSkuExport = allSkuRows.map(x => ({
       Brand: x.brand || '',
       Promotion: x.promo || '',
+      Category: x.category || '',
+      'Promo Details': x.details || '',
+      'Ginesys Promo ID': x.ginesys || '',
       'Live Till': x.till,
     }))
 
@@ -574,6 +580,9 @@ export default function TodayPromos() {
                       <tr className="bg-paper text-[11px] uppercase tracking-wide text-muted">
                         <th className="text-left px-4 py-2.5">Brand</th>
                         <th className="text-left px-4 py-2.5">Promotion</th>
+                        <th className="text-left px-4 py-2.5">Category</th>
+                        <th className="text-left px-4 py-2.5">Promo Details</th>
+                        <th className="text-left px-4 py-2.5">Ginesys ID</th>
                         <th className="text-left px-4 py-2.5">SKU</th>
                         <th className="text-left px-4 py-2.5">MRP</th>
                         <th className="text-left px-4 py-2.5">RSP</th>
@@ -587,6 +596,9 @@ export default function TodayPromos() {
                         <tr key={i} className="border-t border-border">
                           <td className="px-4 py-2.5 font-medium text-ink">{x.brand}</td>
                           <td className="px-4 py-2.5">{x.promo}</td>
+                          <td className="px-4 py-2.5">{x.category || <span className="text-muted">—</span>}</td>
+                          <td className="px-4 py-2.5 max-w-xs truncate" title={x.details}>{x.details || <span className="text-muted">—</span>}</td>
+                          <td className="px-4 py-2.5">{x.ginesys || <span className="text-muted">—</span>}</td>
                           <td className="px-4 py-2.5"><span className="font-mono text-xs text-ink">{x.sku}</span></td>
                           <td className="px-4 py-2.5">{x.mrp || <span className="text-muted">—</span>}</td>
                           <td className="px-4 py-2.5">{x.rsp || <span className="text-muted">—</span>}</td>
@@ -596,7 +608,7 @@ export default function TodayPromos() {
                         </tr>
                       ))}
                       {!selectedSkuRows.length && (
-                        <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">No Selected-SKU promos found.</td></tr>
+                        <tr><td colSpan={11} className="px-4 py-8 text-center text-muted">No Selected-SKU promos found.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -620,6 +632,9 @@ export default function TodayPromos() {
                       <tr className="bg-paper text-[11px] uppercase tracking-wide text-muted">
                         <th className="text-left px-4 py-2.5">Brand</th>
                         <th className="text-left px-4 py-2.5">Promotion</th>
+                        <th className="text-left px-4 py-2.5">Category</th>
+                        <th className="text-left px-4 py-2.5">Promo Details</th>
+                        <th className="text-left px-4 py-2.5">Ginesys ID</th>
                         <th className="text-left px-4 py-2.5">Live Till</th>
                       </tr>
                     </thead>
@@ -628,11 +643,14 @@ export default function TodayPromos() {
                         <tr key={i} className="border-t border-border">
                           <td className="px-4 py-2.5 font-medium text-ink">{x.brand}</td>
                           <td className="px-4 py-2.5">{x.promo}</td>
+                          <td className="px-4 py-2.5">{x.category || <span className="text-muted">—</span>}</td>
+                          <td className="px-4 py-2.5 max-w-xs truncate" title={x.details}>{x.details || <span className="text-muted">—</span>}</td>
+                          <td className="px-4 py-2.5">{x.ginesys || <span className="text-muted">—</span>}</td>
                           <td className="px-4 py-2.5">{fmtDate(x.till)}</td>
                         </tr>
                       ))}
                       {!allSkuRows.length && (
-                        <tr><td colSpan={3} className="px-4 py-8 text-center text-muted">No All-SKU promos found.</td></tr>
+                        <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">No All-SKU promos found.</td></tr>
                       )}
                     </tbody>
                   </table>

@@ -83,7 +83,7 @@ Deno.serve(async (_req) => {
     // No category/brand filter here (those are UI-only filters on the manual "Sync again" path).
     const { data: rows, error: rowsErr } = await supabase
       .from("promo_requests")
-      .select("brand_names, promotion_name, assortment_type, sku_file_link, store, date_ranges");
+      .select("brand_names, promotion_name, assortment_type, sku_file_link, store, date_ranges, category, promo_details, ginesys_promo_id");
     if (rowsErr) throw rowsErr;
 
     const liveToday = (rows || []).filter((r: any) => {
@@ -127,6 +127,9 @@ Deno.serve(async (_req) => {
                 rsp: anyInv.rsp || "",
                 stock,
                 till: endDate,
+                category: r.category || "",
+                details: r.promo_details || "",
+                ginesys: r.ginesys_promo_id || "",
               });
             }
           }
@@ -134,7 +137,18 @@ Deno.serve(async (_req) => {
           // skip this promo's SKU rows if its file can't be fetched
         }
       } else {
-        out.push({ brand: r.brand_names, promo: r.promotion_name, sku: "ALL SKUs", mrp: "", rsp: "", stock: {}, till: endDate });
+        out.push({
+          brand: r.brand_names,
+          promo: r.promotion_name,
+          sku: "ALL SKUs",
+          mrp: "",
+          rsp: "",
+          stock: {},
+          till: endDate,
+          category: r.category || "",
+          details: r.promo_details || "",
+          ginesys: r.ginesys_promo_id || "",
+        });
       }
     }
 
