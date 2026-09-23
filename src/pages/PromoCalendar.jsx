@@ -42,11 +42,14 @@ export default function TodayPromos() {
   const [selectedSkuOpen, setSelectedSkuOpen] = useState(true)
   const [openCategories, setOpenCategories] = useState({})
   const [allSkuOpen, setAllSkuOpen] = useState(true)
+  const [cityStatus, setCityStatus] = useState([])
 
   useEffect(() => {
     // Fetch campaigns only once on mount
     supabase.from('sale_campaigns').select('*').order('start_date', { ascending: false })
       .then(({ data }) => setCampaigns(data || []))
+    supabase.from('promo_city_status').select('*')
+      .then(({ data }) => setCityStatus(data || []))
   }, [])
 
   useEffect(() => { load() }, [store, campFilter])
@@ -95,18 +98,36 @@ export default function TodayPromos() {
   })
   const liveCategories = ['All', ...new Set(liveToday.map(r => r.category).filter(Boolean).sort())]
 
-  const handlePhotoUpdate = (id, url, date) => {
-    setRows(prev => prev.map(r => r.id === id ? { ...r, store_photo_url: url, store_photo_date: date, store_photo_ts: Date.now() } : r))
+  const cityStatusMap = {}
+  cityStatus.forEach(cs => { cityStatusMap[`${cs.promo_id}|${cs.city}`] = cs })
+
+  const handlePhotoUpdate = (promoId, city, url, date, ts) => {
+    setCityStatus(prev => {
+      const idx = prev.findIndex(cs => cs.promo_id === promoId && cs.city === city)
+      if (idx === -1) return [...prev, { promo_id: promoId, city, photo_url: url, photo_date: date, photo_ts: ts }]
+      const updated = [...prev]
+      updated[idx] = { ...updated[idx], photo_url: url, photo_date: date, photo_ts: ts }
+      return updated
+    })
   }
 
-  const handlePick = async (row) => {
-    const alreadyPicked = !!row.picked_by
+  const handlePick = async (row, city) => {
+    const existing = cityStatus.find(cs => cs.promo_id === row.id && cs.city === city)
+    const alreadyPicked = !!existing?.picked_by
     const patch = alreadyPicked
       ? { picked_by: null, picked_at: null }
       : { picked_by: user.email, picked_at: new Date().toISOString() }
 
-    await supabase.from('promo_requests').update(patch).eq('id', row.id)
-    setRows(r => r.map(x => x.id === row.id ? { ...x, ...patch } : x))
+    const { data, error } = await supabase
+      .from('promo_city_status')
+      .upsert({ promo_id: row.id, city, ...patch }, { onConflict: 'promo_id,city' })
+      .select()
+      .maybeSingle()
+    if (error) { alert('Could not update pick status: ' + error.message); return }
+    setCityStatus(prev => {
+      const others = prev.filter(cs => !(cs.promo_id === row.id && cs.city === city))
+      return [...others, data]
+    })
   }
 
   const toExport = (list) => list.map(r => ({
@@ -414,10 +435,35 @@ export default function TodayPromos() {
     (store === 'All' || (r.store || '').includes(store))
   )
 
-  const isPickedToday = r => r.picked_at && r.picked_at.split('T')[0] === today
-  const isPickedWeek = r => r.picked_at && r.picked_at.split('T')[0] >= sevenDaysAgoISO && r.picked_at.split('T')[0] <= today
-  const isPhotoToday = r => r.store_photo_date === today
-  const isPhotoWeek = r => r.store_photo_date && r.store_photo_date >= sevenDaysAgoISO && r.store_photo_date <= today
+  const getCityStatusesFor = r => cityStatus.filter(cs => cs.promo_id === r.id)
+  const isPickedToday = r => {
+    if (store !== 'All') {
+      const cs = cityStatusMap[`${r.id}|${store}`]
+      return !!(cs?.picked_at && cs.picked_at.split('T')[0] === today)
+    }
+    return getCityStatusesFor(r).some(cs => cs.picked_at && cs.picked_at.split('T')[0] === today)
+  }
+  const isPickedWeek = r => {
+    if (store !== 'All') {
+      const cs = cityStatusMap[`${r.id}|${store}`]
+      return !!(cs?.picked_at && cs.picked_at.split('T')[0] >= sevenDaysAgoISO && cs.picked_at.split('T')[0] <= today)
+    }
+    return getCityStatusesFor(r).some(cs => cs.picked_at && cs.picked_at.split('T')[0] >= sevenDaysAgoISO && cs.picked_at.split('T')[0] <= today)
+  }
+  const isPhotoToday = r => {
+    if (store !== 'All') {
+      const cs = cityStatusMap[`${r.id}|${store}`]
+      return cs?.photo_date === today
+    }
+    return getCityStatusesFor(r).some(cs => cs.photo_date === today)
+  }
+  const isPhotoWeek = r => {
+    if (store !== 'All') {
+      const cs = cityStatusMap[`${r.id}|${store}`]
+      return !!(cs?.photo_date && cs.photo_date >= sevenDaysAgoISO && cs.photo_date <= today)
+    }
+    return getCityStatusesFor(r).some(cs => cs.photo_date && cs.photo_date >= sevenDaysAgoISO && cs.photo_date <= today)
+  }
 
   const blankStats = () => ({ total: 0, todayPicked: 0, todayPhoto: 0, weekPicked: 0, weekPhoto: 0 })
   const addStats = (s, r) => {
@@ -566,6 +612,7 @@ export default function TodayPromos() {
             currentUserEmail={user?.email}
             onPhotoUpdate={handlePhotoUpdate}
             storeFilter={store}
+            cityStatusMap={cityStatusMap}
           />
         </div>
       ) : calTab === 'dailyFiles' ? (
@@ -719,7 +766,7 @@ export default function TodayPromos() {
         <div className="space-y-4">
           <div className="text-xs font-body text-muted bg-white border border-border rounded-xl px-4 py-3">
             Showing <span className="text-ink font-medium">{store}</span> · {pickPhotoBase.length} live promos today.
-            Picked/photo status is recorded once per promo, not per city — a promo live in several stores shares one status across all of them.
+            Picked/photo status is now tracked per city. With Store set to a specific city, counts reflect that city only; with "All", a promo counts if picked/photographed in any of the cities it's live in. Marks recorded before this change are shown separately on each card as "Legacy" and aren't included here.
           </div>
 
           <div className="bg-white border border-border rounded-xl overflow-hidden">
@@ -787,6 +834,8 @@ campaigns={campaigns}                 title="Starting Today"
                 onPick={handlePick}
                 currentUserEmail={user?.email}
                 onPhotoUpdate={handlePhotoUpdate}
+                storeFilter={store}
+                cityStatusMap={cityStatusMap}
               />
               <PromoGroup
 campaigns={campaigns}                 title="Ending Today"
@@ -801,6 +850,8 @@ campaigns={campaigns}                 title="Ending Today"
                 onPick={handlePick}
                 currentUserEmail={user?.email}
                 onPhotoUpdate={handlePhotoUpdate}
+                storeFilter={store}
+                cityStatusMap={cityStatusMap}
               />
             </div>
           </div>
@@ -824,6 +875,8 @@ campaigns={campaigns}                 title="Starting Tomorrow"
                 onPick={handlePick}
                 currentUserEmail={user?.email}
                 onPhotoUpdate={handlePhotoUpdate}
+                storeFilter={store}
+                cityStatusMap={cityStatusMap}
               />
               <PromoGroup
 campaigns={campaigns}                 title="Ending Tomorrow"
@@ -838,6 +891,8 @@ campaigns={campaigns}                 title="Ending Tomorrow"
                 onPick={handlePick}
                 currentUserEmail={user?.email}
                 onPhotoUpdate={handlePhotoUpdate}
+                storeFilter={store}
+                cityStatusMap={cityStatusMap}
               />
             </div>
           </div>
@@ -848,7 +903,7 @@ campaigns={campaigns}                 title="Ending Tomorrow"
   )
 }
 
-function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, onExport, exporting = false, exportProgress = '', onPick, currentUserEmail, campaigns = [], onPhotoUpdate, storeFilter = 'All' }) {
+function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, onExport, exporting = false, exportProgress = '', onPick, currentUserEmail, campaigns = [], onPhotoUpdate, storeFilter = 'All', cityStatusMap = {} }) {
   return (
     <div className="bg-white border border-border rounded-xl overflow-hidden">
       {/* Group header */}
@@ -887,6 +942,7 @@ function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, on
                 campaigns={campaigns}
                 onPhotoUpdate={onPhotoUpdate}
                 storeFilter={storeFilter}
+                cityStatusMap={cityStatusMap}
               />
             </div>
           ))}
@@ -896,15 +952,18 @@ function PromoGroup({ title, icon, color, bg, border, rows, event, matchDate, on
   )
 }
 
-function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, campaigns = [], onPhotoUpdate, storeFilter = 'All' }) {
-  const isPicked = !!r.picked_by
-  const isNewPromo = isNew(r)
-  const pickedByMe = r.picked_by === currentUserEmail
-  const [photoUploading, setPhotoUploading] = useState(false)
+function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, campaigns = [], onPhotoUpdate, storeFilter = 'All', cityStatusMap = {} }) {
   const today = new Date().toISOString().split('T')[0]
-  const hasPhoto = !!r.store_photo_url
-  const hasPhotoToday = r.store_photo_url && r.store_photo_date === today
+  const currentCity = storeFilter !== 'All' ? storeFilter : null
+  const cs = currentCity ? cityStatusMap[`${r.id}|${currentCity}`] : null
+  const isPicked = !!cs?.picked_by
+  const isNewPromo = isNew(r)
+  const pickedByMe = cs?.picked_by === currentUserEmail
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const hasPhoto = !!cs?.photo_url
+  const hasPhotoToday = cs?.photo_url && cs?.photo_date === today
   const photoLabel = hasPhotoToday ? 'Replace' : hasPhoto ? 'Update photo' : 'Take photo'
+  const hasLegacy = !!(r.picked_by || r.store_photo_url)
 
   const [skuDownloading, setSkuDownloading] = useState(false)
 
@@ -1013,24 +1072,22 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0]
     if (!file) return
+    if (!currentCity) { alert('Select a specific city in the Store filter above before uploading a photo.'); return }
     setPhotoUploading(true)
     try {
       const ext = file.name.split('.').pop()
       const safeId = (r.promo_request_id || '').replace(/[^a-zA-Z0-9]/g, '_')
-      const path = `store-photos/${today}_${safeId}.${ext}`
-      const { data: { session } } = await supabase.auth.getSession()
-      console.log('Session email:', session?.user?.email)
+      const safeCity = currentCity.replace(/[^a-zA-Z0-9]/g, '_')
+      const path = `store-photos/${today}_${safeId}_${safeCity}.${ext}`
       const { error: storageErr } = await supabase.storage.from('promo-files').upload(path, file, { upsert: true })
-      console.log('Storage error:', storageErr)
       if (storageErr) throw storageErr
       const { data: { publicUrl } } = supabase.storage.from('promo-files').getPublicUrl(path)
-      console.log('Public URL:', publicUrl)
-      const { error: rpcErr } = await supabase.rpc('update_store_photo', { p_id: r.id, p_url: publicUrl, p_date: today })
-      console.log('RPC error:', rpcErr)
-      if (rpcErr) throw rpcErr
-      console.log('calling onPhotoUpdate', r.id, publicUrl, today)
-      if (onPhotoUpdate) onPhotoUpdate(r.id, publicUrl, today)
-      else console.log('onPhotoUpdate is not defined!')
+      const photoTs = Date.now()
+      const { error: upsertErr } = await supabase
+        .from('promo_city_status')
+        .upsert({ promo_id: r.id, city: currentCity, photo_url: publicUrl, photo_date: today, photo_ts: photoTs }, { onConflict: 'promo_id,city' })
+      if (upsertErr) throw upsertErr
+      if (onPhotoUpdate) onPhotoUpdate(r.id, currentCity, publicUrl, today, photoTs)
     } catch (err) {
       alert('Photo upload failed: ' + err.message)
     }
@@ -1042,15 +1099,16 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
   )
 
   const handlePickClick = () => {
+    if (!currentCity) return
     if (isPicked && pickedByMe) {
       if (!window.confirm("Are you sure you want to unmark this promo as picked?")) return
     } else if (isPicked && !pickedByMe) {
       const confirmed = window.confirm(
-        `This was already picked by ${r.picked_by?.split('@')[0]}. Are you sure you want to change it?`
+        `This was already picked by ${cs?.picked_by?.split('@')[0]} for ${currentCity}. Are you sure you want to change it?`
       )
       if (!confirmed) return
     }
-    onPick(r)
+    onPick(r, currentCity)
   }
 
   return (
@@ -1085,40 +1143,59 @@ function PromoCard({ row: r, event, matchDate, color, onPick, currentUserEmail, 
       </div>
 
       {/* Action row — pick + photo */}
-      <div className="flex gap-2 mb-2">
-        <button
-          onClick={handlePickClick}
-          className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-body px-3 py-2.5 rounded-xl border transition-colors ${
-            isPicked
-              ? 'bg-emerald-50 text-success border-emerald-200 font-medium'
-              : 'bg-white text-muted border-border hover:border-ink hover:text-ink'
-          }`}>
-          {isPicked ? '✓ Picked' : '○ Mark as Picked'}
-        </button>
-        <label className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-body cursor-pointer px-3 py-2.5 rounded-xl border border-border bg-white hover:bg-paper transition-colors ${photoUploading ? 'opacity-50 text-muted' : 'text-muted hover:text-ink'}`}>
-          {photoUploading ? <Loader2 size={12} className="animate-spin" /> : '📷'}
-          {photoUploading ? 'Uploading…' : photoLabel}
-          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
-        </label>
-      </div>
+      {!currentCity ? (
+        <div className="mb-2 px-3 py-2.5 rounded-xl border border-dashed border-border bg-paper text-xs font-body text-muted text-center">
+          Select a specific city in the Store filter above to mark Picked or upload a photo.
+        </div>
+      ) : (
+        <div className="flex gap-2 mb-2">
+          <button
+            onClick={handlePickClick}
+            className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-body px-3 py-2.5 rounded-xl border transition-colors ${
+              isPicked
+                ? 'bg-emerald-50 text-success border-emerald-200 font-medium'
+                : 'bg-white text-muted border-border hover:border-ink hover:text-ink'
+            }`}>
+            {isPicked ? '✓ Picked' : '○ Mark as Picked'}
+          </button>
+          <label className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-body cursor-pointer px-3 py-2.5 rounded-xl border border-border bg-white hover:bg-paper transition-colors ${photoUploading ? 'opacity-50 text-muted' : 'text-muted hover:text-ink'}`}>
+            {photoUploading ? <Loader2 size={12} className="animate-spin" /> : '📷'}
+            {photoUploading ? 'Uploading…' : photoLabel}
+            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
+          </label>
+        </div>
+      )}
 
-      {/* Status row — last picked + photo date */}
-      <div className={`flex justify-between items-center px-3 py-2 rounded-lg mb-3 text-xs font-body border ${
-        isPicked ? 'bg-emerald-50 border-emerald-200' : 'bg-paper border-border'
-      }`}>
-        <span className={isPicked ? 'text-success font-medium' : 'text-muted'}>
-          {isPicked
-            ? `${r.picked_at && new Date(r.picked_at).toISOString().split('T')[0] === today ? 'Picked today' : `Last picked: ${fmtDate(r.picked_at?.split('T')[0])}`} · ${r.picked_by?.split('@')[0]}`
-            : 'Last picked: never'}
-        </span>
-        {hasPhoto && (
-          <a href={r.store_photo_url} target="_blank" rel="noreferrer" className="flex items-center gap-1">
-            <img src={`${r.store_photo_url}?t=${r.store_photo_ts || r.store_photo_date}`} alt="photo" className="h-6 w-6 object-cover rounded border border-border" />
-            <span className={`text-[11px] ${isPicked ? 'text-success' : 'text-muted'}`}>{r.store_photo_date ? fmtDate(r.store_photo_date) : ''}</span>
-          </a>
-        )}
-        {!hasPhoto && <span className={isPicked ? 'text-success/60' : 'text-muted'}>No photo yet</span>}
-      </div>
+      {/* Status row — last picked + photo date, for the currently selected city */}
+      {currentCity && (
+        <div className={`flex justify-between items-center px-3 py-2 rounded-lg mb-1 text-xs font-body border ${
+          isPicked ? 'bg-emerald-50 border-emerald-200' : 'bg-paper border-border'
+        }`}>
+          <span className={isPicked ? 'text-success font-medium' : 'text-muted'}>
+            {isPicked
+              ? `${cs?.picked_at && cs.picked_at.split('T')[0] === today ? 'Picked today' : `Last picked: ${fmtDate(cs?.picked_at?.split('T')[0])}`} · ${cs?.picked_by?.split('@')[0]} · ${currentCity}`
+              : `Last picked (${currentCity}): never`}
+          </span>
+          {hasPhoto && (
+            <a href={cs.photo_url} target="_blank" rel="noreferrer" className="flex items-center gap-1">
+              <img src={`${cs.photo_url}?t=${cs.photo_ts || cs.photo_date}`} alt="photo" className="h-6 w-6 object-cover rounded border border-border" />
+              <span className={`text-[11px] ${isPicked ? 'text-success' : 'text-muted'}`}>{cs.photo_date ? fmtDate(cs.photo_date) : ''}</span>
+            </a>
+          )}
+          {!hasPhoto && <span className={isPicked ? 'text-success/60' : 'text-muted'}>No photo yet</span>}
+        </div>
+      )}
+
+      {/* Legacy pre-per-city data, read-only */}
+      {hasLegacy && (
+        <div className="flex justify-between items-center px-3 py-1.5 rounded-lg mb-3 text-[11px] font-body text-muted bg-gray-50 border border-gray-200">
+          <span>Legacy (city unknown): {r.picked_by ? `picked by ${r.picked_by.split('@')[0]} on ${fmtDate(r.picked_at?.split('T')[0])}` : 'not picked'}</span>
+          {r.store_photo_url && (
+            <a href={r.store_photo_url} target="_blank" rel="noreferrer" className="underline">photo</a>
+          )}
+        </div>
+      )}
+      {!hasLegacy && <div className="mb-3" />}
 
       {/* Brand + identity */}
       <p className="font-display font-bold text-base text-ink">{r.brand_names}</p>
