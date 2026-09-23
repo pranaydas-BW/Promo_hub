@@ -339,14 +339,11 @@ export default function TodayPromos() {
   const selectedSkuRows = dailyRowsForCity
     .filter(x => x.sku !== 'ALL SKUs')
     .filter(x => {
-      // Hide rows where both WH and Store stock are confirmed zero/negative.
-      // Blank/unmatched stock (no inventory row found at all) is left visible —
-      // that's a data-gap case, not a "known zero stock" case.
+      // Keep only rows with confirmed positive stock somewhere — hides zero, negative,
+      // and blank/unmatched (no inventory row found) alike.
       const wh = parseFloat(x.wh)
       const st = parseFloat(x.store)
-      const whIsZero = !isNaN(wh) && wh <= 0
-      const stIsZero = !isNaN(st) && st <= 0
-      return !(whIsZero && stIsZero)
+      return (!isNaN(wh) && wh > 0) || (!isNaN(st) && st > 0)
     })
   const allSkuRows = dailyRowsForCity.filter(x => x.sku === 'ALL SKUs')
 
