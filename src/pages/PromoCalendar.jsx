@@ -43,6 +43,8 @@ export default function TodayPromos() {
   const [openCategories, setOpenCategories] = useState({})
   const [allSkuOpen, setAllSkuOpen] = useState(true)
   const [cityStatus, setCityStatus] = useState([])
+  const [showTrend, setShowTrend] = useState(false)
+  const [trendCategory, setTrendCategory] = useState('Overall')
 
   useEffect(() => {
     // Fetch campaigns only once on mount
@@ -476,6 +478,26 @@ export default function TodayPromos() {
   })
   const categoryRows = Object.entries(categoryGroups).sort((a, b) => b[1].total - a[1].total)
 
+  // 7-day trend — same-day Picked & Photo counts, "Overall" (all categories) or one category, for the selected city
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date()
+    d.setDate(d.getDate() - (6 - i))
+    return d.toISOString().split('T')[0]
+  })
+  const trendPromos = trendCategory === 'Overall'
+    ? pickPhotoBase
+    : pickPhotoBase.filter(r => (r.category || 'Uncategorized') === trendCategory)
+  const trendData = last7Days.map(day => {
+    let picked = 0, photo = 0
+    trendPromos.forEach(r => {
+      const cs = cityStatusMap[`${r.id}|${store}`]
+      if (cs?.picked_at && cs.picked_at.split('T')[0] === day) picked++
+      if (cs?.photo_date === day) photo++
+    })
+    return { day, picked, photo }
+  })
+  const trendMax = Math.max(1, ...trendData.map(d => Math.max(d.picked, d.photo)))
+
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 fade-in">
@@ -756,6 +778,50 @@ export default function TodayPromos() {
           <div className="text-xs font-body text-muted bg-white border border-border rounded-xl px-4 py-3">
             Showing <span className="text-ink font-medium">{store}</span> · {pickPhotoBase.length} live promos today.
             Picked/photo status is tracked per city — counts below reflect the city selected in the Store filter above. Marks recorded before this change are shown separately on each card as "Legacy" and aren't included here.
+          </div>
+
+          <div className="bg-white border border-border rounded-xl overflow-hidden">
+            <button
+              onClick={() => setShowTrend(v => !v)}
+              className="w-full flex items-center gap-2 px-4 py-3 text-sm font-body font-medium text-accent hover:bg-paper/60 transition-colors">
+              {showTrend ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              View 7-day trend
+            </button>
+            {showTrend && (
+              <div className="border-t border-border px-4 py-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-xs font-body text-muted">Scope:</span>
+                  <select
+                    value={trendCategory}
+                    onChange={e => setTrendCategory(e.target.value)}
+                    className="text-sm font-body px-3 py-1.5 rounded-lg border border-border bg-white focus:outline-none">
+                    <option value="Overall">Overall (all categories)</option>
+                    {categoryRows.map(([cat]) => <option key={cat} value={cat}>{cat}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-center gap-4 mb-3 text-[11px] font-body text-muted">
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-accent inline-block" /> Picked</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-sky-400 inline-block" /> Photo</span>
+                </div>
+                <div className="space-y-2.5">
+                  {trendData.map(({ day, picked, photo }) => (
+                    <div key={day} className="flex items-center gap-3">
+                      <span className="text-[11px] font-body text-muted w-16 shrink-0">{fmtDate(day)}</span>
+                      <div className="flex-1 flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2.5 rounded bg-accent" style={{ width: `${(picked / trendMax) * 100}%`, minWidth: picked ? '4px' : '0' }} />
+                          <span className="text-[11px] font-mono text-ink w-6">{picked}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="h-2.5 rounded bg-sky-400" style={{ width: `${(photo / trendMax) * 100}%`, minWidth: photo ? '4px' : '0' }} />
+                          <span className="text-[11px] font-mono text-ink w-6">{photo}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="bg-white border border-border rounded-xl overflow-hidden">
