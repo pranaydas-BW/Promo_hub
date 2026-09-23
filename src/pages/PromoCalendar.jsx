@@ -34,8 +34,9 @@ export default function TodayPromos() {
   const [liveBrand, setLiveBrand] = useState('')
   const [campFilter, setCampFilter] = useState('All')
   const [byCity, setByCity] = useState('VK, Delhi')
-  const [byCityRows, setByCityRows] = useState([])
-  const [byCityLoading, setByCityLoading] = useState(false)
+  const [dailyFile, setDailyFile] = useState(null)
+  const [dailyFileLoading, setDailyFileLoading] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   useEffect(() => {
     // Fetch campaigns only once on mount
@@ -262,53 +263,88 @@ export default function TodayPromos() {
     { label: 'Pune', tab: 'Pune' },
     { label: 'Mumbai', tab: 'Mumbai' },
   ]
+  const CITY_TABS = BY_CITY_OPTIONS.map(c => c.tab)
 
-  const loadByCity = async (cityLabel) => {
-    setByCityLoading(true)
-    try {
-      const tab = BY_CITY_OPTIONS.find(c => c.label === cityLabel)?.tab || 'VK Delhi'
-      const invMap = await fetchInvTab(tab)
-      const out = []
-      for (const r of liveTodayFiltered) {
-        const endDate = Array.isArray(r.date_ranges) && r.date_ranges[0] ? r.date_ranges[0].till : ''
-        if (r.assortment_type === 'Selected SKUs' && r.sku_file_link) {
-          try {
-            const res = await fetch(r.sku_file_link)
-            const text = await res.text()
-            const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
-            if (lines.length >= 2) {
-              const headers = lines[0].split(',').map(h => h.trim())
-              const bcIdx = headers.findIndex(h => h.toLowerCase().includes('barcode'))
-              lines.slice(1).forEach(line => {
-                const vals = line.split(',')
-                const bc = (vals[bcIdx] || '').trim()
-                const inv = invMap[bc] || {}
-                out.push({
-                  brand: r.brand_names, promo: r.promotion_name, sku: bc,
-                  mrp: inv.mrp || '', rsp: inv.rsp || '',
-                  wh: inv.wh_stock || '', store: inv.store_stock || '',
-                  till: endDate,
-                })
+  // Builds one combined dataset (all 4 cities' stock) — used by both the manual
+  // "Sync again" button here and, in principle, mirrors what the 6 AM Apps Script job does server-side.
+  const buildCombinedDailyRows = async () => {
+    const cityMaps = {}
+    await Promise.all(CITY_TABS.map(async tab => { cityMaps[tab] = await fetchInvTab(tab) }))
+    const out = []
+    for (const r of liveTodayFiltered) {
+      const endDate = Array.isArray(r.date_ranges) && r.date_ranges[0] ? r.date_ranges[0].till : ''
+      if (r.assortment_type === 'Selected SKUs' && r.sku_file_link) {
+        try {
+          const res = await fetch(r.sku_file_link)
+          const text = await res.text()
+          const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+          if (lines.length >= 2) {
+            const headers = lines[0].split(',').map(h => h.trim())
+            const bcIdx = headers.findIndex(h => h.toLowerCase().includes('barcode'))
+            lines.slice(1).forEach(line => {
+              const vals = line.split(',')
+              const bc = (vals[bcIdx] || '').trim()
+              const anyInv = Object.values(cityMaps).find(m => m[bc]) ? Object.values(cityMaps).find(m => m[bc])[bc] : {}
+              const stock = {}
+              CITY_TABS.forEach(tab => {
+                stock[tab] = { wh: (cityMaps[tab][bc] || {}).wh_stock || '', store: (cityMaps[tab][bc] || {}).store_stock || '' }
               })
-            }
-          } catch (e) { /* skip this promo's SKU rows if its file can't be fetched */ }
-        } else {
-          out.push({ brand: r.brand_names, promo: r.promotion_name, sku: 'ALL SKUs', mrp: '', rsp: '', wh: '', store: '', till: endDate })
-        }
+              out.push({ brand: r.brand_names, promo: r.promotion_name, sku: bc, mrp: anyInv.mrp || '', rsp: anyInv.rsp || '', stock, till: endDate })
+            })
+          }
+        } catch (e) { /* skip this promo's SKU rows if its file can't be fetched */ }
+      } else {
+        out.push({ brand: r.brand_names, promo: r.promotion_name, sku: 'ALL SKUs', mrp: '', rsp: '', stock: {}, till: endDate })
       }
-      setByCityRows(out)
+    }
+    return out
+  }
+
+  const loadDailyFile = async () => {
+    setDailyFileLoading(true)
+    try {
+      const { data, error } = await supabase.from('daily_sync_files').select('*').order('sync_date', { ascending: false }).limit(1).maybeSingle()
+      if (!error) setDailyFile(data || null)
     } finally {
-      setByCityLoading(false)
+      setDailyFileLoading(false)
     }
   }
 
+  const handleSyncNow = async () => {
+    setSyncing(true)
+    try {
+      const combined = await buildCombinedDailyRows()
+      const payload = { sync_date: today, synced_at: new Date().toISOString(), synced_by: user?.email || 'unknown', data: combined }
+      const { data, error } = await supabase.from('daily_sync_files').upsert(payload, { onConflict: 'sync_date' }).select().maybeSingle()
+      if (error) { alert('Sync failed: ' + error.message) } else { setDailyFile(data) }
+    } catch (e) { alert('Sync failed: ' + e.message) }
+    setSyncing(false)
+  }
+
   useEffect(() => {
-    if (calTab === 'byCity') loadByCity(byCity)
+    if (calTab === 'dailyFiles' && !dailyFile) loadDailyFile()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [calTab, byCity, rows.length, liveCategory, liveBrand])
+  }, [calTab])
+
+  const selectedCityTab = BY_CITY_OPTIONS.find(c => c.label === byCity)?.tab || 'VK Delhi'
+  const dailyRowsForCity = (dailyFile?.data || []).map(x => ({
+    ...x,
+    wh: x.stock?.[selectedCityTab]?.wh || '',
+    store: x.stock?.[selectedCityTab]?.store || '',
+  }))
+
+  // New promo_requests for this city, live today, created after the cached file was last synced
+  const pendingSyncCount = dailyFile
+    ? rows.filter(r =>
+        isOffline(r) &&
+        (r.store || '').includes(byCity) &&
+        Array.isArray(r.date_ranges) && r.date_ranges.some(dr => dr.from <= today && dr.till >= today) &&
+        r.created_at && new Date(r.created_at) > new Date(dailyFile.synced_at)
+      ).length
+    : 0
 
   const handleByCityExport = () => {
-    const csvRows = byCityRows.map(x => ({
+    const csvRows = dailyRowsForCity.map(x => ({
       Brand: x.brand || '',
       Promotion: x.promo || '',
       'SKU / Assortment': x.sku,
@@ -318,7 +354,7 @@ export default function TodayPromos() {
       'Store Stock': x.store,
       'Live Till': x.till,
     }))
-    exportCSV(csvRows, `store-view-${byCity.replace(/[^a-zA-Z0-9]/g, '_')}-${today}.csv`)
+    exportCSV(csvRows, `daily-file-${byCity.replace(/[^a-zA-Z0-9]/g, '_')}-${today}.csv`)
   }
 
   return (
@@ -390,9 +426,9 @@ export default function TodayPromos() {
           className={`px-4 py-1.5 rounded-lg text-xs font-body border transition-colors ${calTab === 'live' ? 'bg-ink text-white border-ink' : 'bg-white text-muted border-border hover:text-ink'}`}>
           Live Today ({liveToday.length})
         </button>
-        <button onClick={() => setCalTab('byCity')}
-          className={`px-4 py-1.5 rounded-lg text-xs font-body border transition-colors ${calTab === 'byCity' ? 'bg-ink text-white border-ink' : 'bg-white text-muted border-border hover:text-ink'}`}>
-          By City
+        <button onClick={() => setCalTab('dailyFiles')}
+          className={`px-4 py-1.5 rounded-lg text-xs font-body border transition-colors ${calTab === 'dailyFiles' ? 'bg-ink text-white border-ink' : 'bg-white text-muted border-border hover:text-ink'}`}>
+          Download daily files
         </button>
       </div>
 
@@ -445,8 +481,32 @@ export default function TodayPromos() {
             storeFilter={store}
           />
         </div>
-      ) : calTab === 'byCity' ? (
+      ) : calTab === 'dailyFiles' ? (
         <div className="space-y-4">
+
+          {/* Sync status bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-border rounded-xl px-4 py-3">
+            <div className="text-xs font-body text-muted">
+              {dailyFileLoading ? 'Checking last sync…' : dailyFile
+                ? <>Last synced <span className="text-ink font-medium">{new Date(dailyFile.synced_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>{dailyFile.synced_by ? <> by {dailyFile.synced_by === 'unknown' ? 'automated job' : dailyFile.synced_by}</> : ''}</>
+                : 'No file synced yet today.'}
+            </div>
+            <div className="flex items-center gap-3">
+              {pendingSyncCount > 0 && (
+                <span className="flex items-center gap-1.5 text-[11px] font-body font-medium text-warning bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                  ⚠ {pendingSyncCount} new request{pendingSyncCount === 1 ? '' : 's'} pending sync
+                </span>
+              )}
+              <button
+                onClick={handleSyncNow}
+                disabled={syncing}
+                className="flex items-center gap-1.5 bg-white border border-border text-xs font-body font-medium px-3 py-1.5 rounded-lg hover:bg-paper disabled:opacity-50 transition-colors">
+                {syncing ? <Loader2 size={13} className="animate-spin text-muted" /> : <RefreshCw size={13} className="text-muted" />}
+                {syncing ? 'Syncing…' : 'Sync again'}
+              </button>
+            </div>
+          </div>
+
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex gap-1.5">
               {BY_CITY_OPTIONS.map(c => (
@@ -462,16 +522,20 @@ export default function TodayPromos() {
             </div>
             <button
               onClick={handleByCityExport}
-              disabled={byCityLoading || !byCityRows.length}
+              disabled={dailyFileLoading || !dailyRowsForCity.length}
               className="flex items-center gap-1.5 bg-white border border-border text-sm font-body px-3 py-2 rounded-lg hover:bg-paper disabled:opacity-40 transition-colors">
               <Download size={14} className="text-muted" /> Export CSV
             </button>
           </div>
 
-          {byCityLoading ? (
+          {dailyFileLoading ? (
             <div className="flex justify-center items-center h-48 gap-2 text-muted">
               <Loader2 size={18} className="animate-spin" />
-              <span className="text-sm">Loading stock for {byCity}…</span>
+              <span className="text-sm">Loading today's file…</span>
+            </div>
+          ) : !dailyFile ? (
+            <div className="flex flex-col justify-center items-center h-48 gap-3 text-muted">
+              <span className="text-sm">No daily file yet — the automated sync runs at 6:00 AM IST, or click Sync again to build it now.</span>
             </div>
           ) : (
             <div className="bg-white border border-border rounded-xl overflow-hidden">
@@ -489,7 +553,7 @@ export default function TodayPromos() {
                   </tr>
                 </thead>
                 <tbody>
-                  {byCityRows.map((x, i) => (
+                  {dailyRowsForCity.map((x, i) => (
                     <tr key={i} className="border-t border-border">
                       <td className="px-4 py-2.5 font-medium text-ink">{x.brand}</td>
                       <td className="px-4 py-2.5">{x.promo}</td>
@@ -505,7 +569,7 @@ export default function TodayPromos() {
                       <td className="px-4 py-2.5">{fmtDate(x.till)}</td>
                     </tr>
                   ))}
-                  {!byCityRows.length && (
+                  {!dailyRowsForCity.length && (
                     <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">No live promos found.</td></tr>
                   )}
                 </tbody>
