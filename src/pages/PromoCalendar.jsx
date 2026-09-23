@@ -40,6 +40,7 @@ export default function TodayPromos() {
   const [dailyFileLoading, setDailyFileLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [selectedSkuOpen, setSelectedSkuOpen] = useState(true)
+  const [openCategories, setOpenCategories] = useState({})
   const [allSkuOpen, setAllSkuOpen] = useState(true)
 
   useEffect(() => {
@@ -396,6 +397,48 @@ export default function TodayPromos() {
     XLSX.writeFile(wb, `daily-file-${store.replace(/[^a-zA-Z0-9]/g, '_')}-${today}.xlsx`)
   }
 
+  // ── Pick & Photo Analytics ────────────────────────────────────────────────
+  // NOTE: "picked" and "photo taken" are recorded once per promo row, not per city —
+  // a promo live in multiple stores shares one picked_at/store_photo_date. So this is
+  // "of the promos live in the selected city today, how many are marked picked/photographed",
+  // not a true per-city attribution of who actually did it.
+  const sevenDaysAgoISO = (() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 6)
+    return d.toISOString().split('T')[0]
+  })()
+
+  const pickPhotoBase = rows.filter(r =>
+    (r.store || '') !== 'Online' &&
+    Array.isArray(r.date_ranges) && r.date_ranges.some(dr => dr.from <= today && dr.till >= today) &&
+    (store === 'All' || (r.store || '').includes(store))
+  )
+
+  const isPickedToday = r => r.picked_at && r.picked_at.split('T')[0] === today
+  const isPickedWeek = r => r.picked_at && r.picked_at.split('T')[0] >= sevenDaysAgoISO && r.picked_at.split('T')[0] <= today
+  const isPhotoToday = r => r.store_photo_date === today
+  const isPhotoWeek = r => r.store_photo_date && r.store_photo_date >= sevenDaysAgoISO && r.store_photo_date <= today
+
+  const blankStats = () => ({ total: 0, todayPicked: 0, todayPhoto: 0, weekPicked: 0, weekPhoto: 0 })
+  const addStats = (s, r) => {
+    s.total++
+    if (isPickedToday(r)) s.todayPicked++
+    if (isPickedWeek(r)) s.weekPicked++
+    if (isPhotoToday(r)) s.todayPhoto++
+    if (isPhotoWeek(r)) s.weekPhoto++
+  }
+
+  const categoryGroups = {}
+  pickPhotoBase.forEach(r => {
+    const cat = r.category || 'Uncategorized'
+    if (!categoryGroups[cat]) categoryGroups[cat] = { ...blankStats(), brands: {} }
+    addStats(categoryGroups[cat], r)
+    const brand = r.brand_names || 'Unknown'
+    if (!categoryGroups[cat].brands[brand]) categoryGroups[cat].brands[brand] = blankStats()
+    addStats(categoryGroups[cat].brands[brand], r)
+  })
+  const categoryRows = Object.entries(categoryGroups).sort((a, b) => b[1].total - a[1].total)
+
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 fade-in">
@@ -469,6 +512,10 @@ export default function TodayPromos() {
         <button onClick={() => setCalTab('dailyFiles')}
           className={`px-4 py-1.5 rounded-lg text-xs font-body border transition-colors ${calTab === 'dailyFiles' ? 'bg-ink text-white border-ink' : 'bg-white text-muted border-border hover:text-ink'}`}>
           Download daily files
+        </button>
+        <button onClick={() => setCalTab('pickPhoto')}
+          className={`px-4 py-1.5 rounded-lg text-xs font-body border transition-colors ${calTab === 'pickPhoto' ? 'bg-ink text-white border-ink' : 'bg-white text-muted border-border hover:text-ink'}`}>
+          Pick &amp; Photo Analytics
         </button>
       </div>
 
@@ -667,6 +714,56 @@ export default function TodayPromos() {
               </div>
             </>
           )}
+        </div>
+      ) : calTab === 'pickPhoto' ? (
+        <div className="space-y-4">
+          <div className="text-xs font-body text-muted bg-white border border-border rounded-xl px-4 py-3">
+            Showing <span className="text-ink font-medium">{store}</span> · {pickPhotoBase.length} live promos today.
+            Picked/photo status is recorded once per promo, not per city — a promo live in several stores shares one status across all of them.
+          </div>
+
+          <div className="bg-white border border-border rounded-xl overflow-hidden">
+            <div className="grid grid-cols-[1fr_repeat(4,110px)] bg-paper text-[11px] uppercase tracking-wide text-muted px-4 py-2.5">
+              <div>Category</div>
+              <div className="text-center">Picked Today</div>
+              <div className="text-center">Photo Today</div>
+              <div className="text-center">Picked (7d)</div>
+              <div className="text-center">Photo (7d)</div>
+            </div>
+            {categoryRows.map(([cat, stats]) => (
+              <div key={cat} className="border-t border-border">
+                <button
+                  onClick={() => setOpenCategories(prev => ({ ...prev, [cat]: !prev[cat] }))}
+                  className="w-full grid grid-cols-[1fr_repeat(4,110px)] items-center px-4 py-2.5 text-sm font-body hover:bg-paper/60 transition-colors">
+                  <span className="flex items-center gap-2 text-left">
+                    {openCategories[cat] ? <ChevronDown size={13} className="text-muted" /> : <ChevronRight size={13} className="text-muted" />}
+                    <span className="font-medium text-ink">{cat}</span>
+                    <span className="text-xs text-muted">({stats.total})</span>
+                  </span>
+                  <span className="text-center">{stats.todayPicked}/{stats.total}</span>
+                  <span className="text-center">{stats.todayPhoto}/{stats.total}</span>
+                  <span className="text-center">{stats.weekPicked}/{stats.total}</span>
+                  <span className="text-center">{stats.weekPhoto}/{stats.total}</span>
+                </button>
+                {openCategories[cat] && (
+                  <div className="bg-paper/40">
+                    {Object.entries(stats.brands).sort((a, b) => b[1].total - a[1].total).map(([brand, bstats]) => (
+                      <div key={brand} className="grid grid-cols-[1fr_repeat(4,110px)] items-center px-4 py-2 pl-10 text-sm font-body border-t border-border/60">
+                        <span className="text-ink">{brand} <span className="text-xs text-muted">({bstats.total})</span></span>
+                        <span className="text-center text-muted">{bstats.todayPicked}/{bstats.total}</span>
+                        <span className="text-center text-muted">{bstats.todayPhoto}/{bstats.total}</span>
+                        <span className="text-center text-muted">{bstats.weekPicked}/{bstats.total}</span>
+                        <span className="text-center text-muted">{bstats.weekPhoto}/{bstats.total}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {!categoryRows.length && (
+              <div className="px-4 py-8 text-center text-muted text-sm font-body">No live promos found.</div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="space-y-8">
