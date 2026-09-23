@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { StatusBadge, CurrentStatusDot, exportCSV, fmtDate, todayISO } from '../lib/constants.jsx'
-import { Download, RefreshCw, CalendarCheck, CalendarX, Loader2, ExternalLink, Store, Tag } from 'lucide-react'
+import { Download, RefreshCw, CalendarCheck, CalendarX, Loader2, ExternalLink, Store, Tag, ChevronDown, ChevronRight } from 'lucide-react'
 
 const STORES = ['All', 'VK, Delhi', 'BH, Hyderabad', 'Pune', 'Mumbai']
 
@@ -34,10 +34,11 @@ export default function TodayPromos() {
   const [liveCategory, setLiveCategory] = useState('All')
   const [liveBrand, setLiveBrand] = useState('')
   const [campFilter, setCampFilter] = useState('All')
-  const [byCity, setByCity] = useState('VK, Delhi')
   const [dailyFile, setDailyFile] = useState(null)
   const [dailyFileLoading, setDailyFileLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [selectedSkuOpen, setSelectedSkuOpen] = useState(true)
+  const [allSkuOpen, setAllSkuOpen] = useState(true)
 
   useEffect(() => {
     // Fetch campaigns only once on mount
@@ -327,49 +328,51 @@ export default function TodayPromos() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calTab])
 
-  const selectedCityTab = BY_CITY_OPTIONS.find(c => c.label === byCity)?.tab || 'VK Delhi'
+  // Which city's stock columns to show — driven by the top Store filter, not a separate selector.
+  // 'All' has no single city's stock to show, so WH/Store stock stay blank in that case.
+  const selectedCityTab = BY_CITY_OPTIONS.find(c => c.label === store)?.tab || null
   const dailyRowsForCity = (dailyFile?.data || []).map(x => ({
     ...x,
-    wh: x.stock?.[selectedCityTab]?.wh || '',
-    store: x.stock?.[selectedCityTab]?.store || '',
+    wh: selectedCityTab ? (x.stock?.[selectedCityTab]?.wh || '') : '',
+    store: selectedCityTab ? (x.stock?.[selectedCityTab]?.store || '') : '',
   }))
+  const selectedSkuRows = dailyRowsForCity.filter(x => x.sku !== 'ALL SKUs')
+  const allSkuRows = dailyRowsForCity.filter(x => x.sku === 'ALL SKUs')
 
-  // New promo_requests for this city, live today, created after the cached file was last synced
+  // New promo_requests live today, created after the cached file was last synced.
+  // When the top filter is a specific city, scope to that city's promos; 'All' covers every city.
   const pendingSyncCount = dailyFile
     ? rows.filter(r =>
         isOffline(r) &&
-        (r.store || '').includes(byCity) &&
+        (store === 'All' || (r.store || '').includes(store)) &&
         Array.isArray(r.date_ranges) && r.date_ranges.some(dr => dr.from <= today && dr.till >= today) &&
         r.created_at && new Date(r.created_at) > new Date(dailyFile.synced_at)
       ).length
     : 0
 
   const handleByCityExport = () => {
-    const selectedSkuRows = dailyRowsForCity
-      .filter(x => x.sku !== 'ALL SKUs')
-      .map(x => ({
-        Brand: x.brand || '',
-        Promotion: x.promo || '',
-        SKU: x.sku,
-        MRP: x.mrp,
-        RSP: x.rsp,
-        'WH Stock': x.wh,
-        'Store Stock': x.store,
-        'Live Till': x.till,
-      }))
-    const allSkuRows = dailyRowsForCity
-      .filter(x => x.sku === 'ALL SKUs')
-      .map(x => ({
-        Brand: x.brand || '',
-        Promotion: x.promo || '',
-        'Live Till': x.till,
-      }))
+    const selectedSkuExport = selectedSkuRows.map(x => ({
+      Brand: x.brand || '',
+      Promotion: x.promo || '',
+      SKU: x.sku,
+      MRP: x.mrp,
+      RSP: x.rsp,
+      'WH Stock': x.wh,
+      'Store Stock': x.store,
+      'Live Till': x.till,
+    }))
+    const allSkuExport = allSkuRows.map(x => ({
+      Brand: x.brand || '',
+      Promotion: x.promo || '',
+      'Live Till': x.till,
+    }))
 
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(selectedSkuRows), 'Selected SKUs')
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allSkuRows), 'All SKUs')
-    XLSX.writeFile(wb, `daily-file-${byCity.replace(/[^a-zA-Z0-9]/g, '_')}-${today}.xlsx`)
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(selectedSkuExport), 'Selected SKUs')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allSkuExport), 'All SKUs')
+    XLSX.writeFile(wb, `daily-file-${store.replace(/[^a-zA-Z0-9]/g, '_')}-${today}.xlsx`)
   }
+
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 fade-in">
@@ -522,17 +525,10 @@ export default function TodayPromos() {
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex gap-1.5">
-              {BY_CITY_OPTIONS.map(c => (
-                <button key={c.label} onClick={() => setByCity(c.label)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-body border transition-colors ${
-                    byCity === c.label
-                      ? 'bg-ink text-white border-ink'
-                      : 'bg-white text-muted border-border hover:text-ink hover:border-ink'
-                  }`}>
-                  {c.label}
-                </button>
-              ))}
+            <div className="text-xs font-body text-muted">
+              {selectedCityTab
+                ? <>Showing stock for <span className="text-ink font-medium">{store}</span> — change city using the Store filter above</>
+                : <>Store filter is "All" — WH/Store stock is city-specific, so pick a city above to see stock numbers</>}
             </div>
             <button
               onClick={handleByCityExport}
@@ -552,43 +548,89 @@ export default function TodayPromos() {
               <span className="text-sm">No daily file yet — the automated sync runs at 6:00 AM IST, or click Sync again to build it now.</span>
             </div>
           ) : (
-            <div className="bg-white border border-border rounded-xl overflow-hidden">
-              <table className="w-full text-sm font-body">
-                <thead>
-                  <tr className="bg-paper text-[11px] uppercase tracking-wide text-muted">
-                    <th className="text-left px-4 py-2.5">Brand</th>
-                    <th className="text-left px-4 py-2.5">Promotion</th>
-                    <th className="text-left px-4 py-2.5">SKU / Assortment</th>
-                    <th className="text-left px-4 py-2.5">MRP</th>
-                    <th className="text-left px-4 py-2.5">RSP</th>
-                    <th className="text-left px-4 py-2.5">WH Stock</th>
-                    <th className="text-left px-4 py-2.5">Store Stock</th>
-                    <th className="text-left px-4 py-2.5">Live Till</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dailyRowsForCity.map((x, i) => (
-                    <tr key={i} className="border-t border-border">
-                      <td className="px-4 py-2.5 font-medium text-ink">{x.brand}</td>
-                      <td className="px-4 py-2.5">{x.promo}</td>
-                      <td className="px-4 py-2.5">
-                        {x.sku === 'ALL SKUs'
-                          ? <span className="bg-paper text-muted rounded px-2 py-0.5 text-[11px] font-semibold tracking-wide">ALL SKUs</span>
-                          : <span className="font-mono text-xs text-ink">{x.sku}</span>}
-                      </td>
-                      <td className="px-4 py-2.5">{x.mrp || <span className="text-muted">—</span>}</td>
-                      <td className="px-4 py-2.5">{x.rsp || <span className="text-muted">—</span>}</td>
-                      <td className="px-4 py-2.5">{x.wh || <span className="text-muted">—</span>}</td>
-                      <td className="px-4 py-2.5">{x.store || <span className="text-muted">—</span>}</td>
-                      <td className="px-4 py-2.5">{fmtDate(x.till)}</td>
-                    </tr>
-                  ))}
-                  {!dailyRowsForCity.length && (
-                    <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">No live promos found.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <>
+              {/* Selected SKUs section */}
+              <div className="bg-white border border-border rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setSelectedSkuOpen(v => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-paper hover:bg-paper/70 transition-colors">
+                  <span className="flex items-center gap-2 text-sm font-body font-medium text-ink">
+                    {selectedSkuOpen ? <ChevronDown size={14} className="text-muted" /> : <ChevronRight size={14} className="text-muted" />}
+                    Selected SKUs
+                    <span className="text-xs text-muted font-normal">({selectedSkuRows.length})</span>
+                  </span>
+                </button>
+                {selectedSkuOpen && (
+                  <table className="w-full text-sm font-body">
+                    <thead>
+                      <tr className="bg-paper text-[11px] uppercase tracking-wide text-muted">
+                        <th className="text-left px-4 py-2.5">Brand</th>
+                        <th className="text-left px-4 py-2.5">Promotion</th>
+                        <th className="text-left px-4 py-2.5">SKU</th>
+                        <th className="text-left px-4 py-2.5">MRP</th>
+                        <th className="text-left px-4 py-2.5">RSP</th>
+                        <th className="text-left px-4 py-2.5">WH Stock</th>
+                        <th className="text-left px-4 py-2.5">Store Stock</th>
+                        <th className="text-left px-4 py-2.5">Live Till</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedSkuRows.map((x, i) => (
+                        <tr key={i} className="border-t border-border">
+                          <td className="px-4 py-2.5 font-medium text-ink">{x.brand}</td>
+                          <td className="px-4 py-2.5">{x.promo}</td>
+                          <td className="px-4 py-2.5"><span className="font-mono text-xs text-ink">{x.sku}</span></td>
+                          <td className="px-4 py-2.5">{x.mrp || <span className="text-muted">—</span>}</td>
+                          <td className="px-4 py-2.5">{x.rsp || <span className="text-muted">—</span>}</td>
+                          <td className="px-4 py-2.5">{x.wh || <span className="text-muted">—</span>}</td>
+                          <td className="px-4 py-2.5">{x.store || <span className="text-muted">—</span>}</td>
+                          <td className="px-4 py-2.5">{fmtDate(x.till)}</td>
+                        </tr>
+                      ))}
+                      {!selectedSkuRows.length && (
+                        <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">No Selected-SKU promos found.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* All SKUs section */}
+              <div className="bg-white border border-border rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setAllSkuOpen(v => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-paper hover:bg-paper/70 transition-colors">
+                  <span className="flex items-center gap-2 text-sm font-body font-medium text-ink">
+                    {allSkuOpen ? <ChevronDown size={14} className="text-muted" /> : <ChevronRight size={14} className="text-muted" />}
+                    All SKUs
+                    <span className="text-xs text-muted font-normal">({allSkuRows.length})</span>
+                  </span>
+                </button>
+                {allSkuOpen && (
+                  <table className="w-full text-sm font-body">
+                    <thead>
+                      <tr className="bg-paper text-[11px] uppercase tracking-wide text-muted">
+                        <th className="text-left px-4 py-2.5">Brand</th>
+                        <th className="text-left px-4 py-2.5">Promotion</th>
+                        <th className="text-left px-4 py-2.5">Live Till</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allSkuRows.map((x, i) => (
+                        <tr key={i} className="border-t border-border">
+                          <td className="px-4 py-2.5 font-medium text-ink">{x.brand}</td>
+                          <td className="px-4 py-2.5">{x.promo}</td>
+                          <td className="px-4 py-2.5">{fmtDate(x.till)}</td>
+                        </tr>
+                      ))}
+                      {!allSkuRows.length && (
+                        <tr><td colSpan={3} className="px-4 py-8 text-center text-muted">No All-SKU promos found.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </>
           )}
         </div>
       ) : (
