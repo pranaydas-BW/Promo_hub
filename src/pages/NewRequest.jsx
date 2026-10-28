@@ -6,6 +6,7 @@ import {
 } from '../lib/constants.jsx'
 import { Section, Field, StoreToggle } from '../components/FormParts'
 import { useSettings } from '../lib/SettingsContext'
+import PromoMechanicFields, { buildPromoName, normalizeParams, promoMechanicError, formParamsFromStored } from '../components/PromoMechanic'
 import {
   CheckCircle, AlertCircle, Loader2, Plus, Trash2,
   Search, X, ArrowLeft, FileText, Copy, Download, FileSpreadsheet,
@@ -37,6 +38,10 @@ const BLANK_FORM = {
   offer_type: '',
   promo_details: '',
   promotion_name: '',
+  promo_mechanic: '',
+  mechanic_params: {},
+  promo_event: '',
+  promo_priority: '',
   assortment_type: '',
   discount_on: '',
   date_ranges: [{ ...BLANK_RANGE }],
@@ -173,6 +178,10 @@ function StepReplicate({ onFound, onBack }) {
       shopify_promo_status, ...rest } = data
     onFound({
       ...BLANK_FORM, ...rest,
+      promo_mechanic: rest.promo_mechanic || '',
+      mechanic_params: formParamsFromStored(rest.promo_mechanic, rest.mechanic_params),
+      promo_event: rest.promo_event || '',
+      promo_priority: rest.promo_priority || '',
       store: Array.isArray(rest.store) ? rest.store : (rest.store || '').split(',').map(s => s.trim()).filter(Boolean),
       date_ranges: [{ ...BLANK_RANGE }],
       status: 'Pending', current_status: 'Not Live',
@@ -433,6 +442,10 @@ export default function NewRequest() {
     if (isMultiBrand && brandGroups.filter(g => g.included).length === 0) {
       setError('Please include at least one brand from the SKU file.'); setLoading(false); return
     }
+    if (offerType === 'Promotion') {
+      const mechErr = promoMechanicError(form)
+      if (mechErr) { setError(mechErr); setLoading(false); return }
+    }
     if (!form.approval_email) {
       setError('Please upload the brand approval screenshot.'); setLoading(false); return
     }
@@ -448,12 +461,23 @@ export default function NewRequest() {
 
     const storeArr = Array.isArray(form.store) ? form.store : (form.store || '').split(',').map(s => s.trim()).filter(Boolean)
     const storeStr = storeArr.includes('Online') ? 'Online' : storeArr.join(', ')
+    // Promotions: the name is generated from the mechanic. Other offer types keep their own free-text name.
+    const promoFields = offerType === 'Promotion'
+      ? {
+          promotion_name: buildPromoName(form.promo_mechanic, form.mechanic_params),
+          promo_mechanic: form.promo_mechanic,
+          mechanic_params: normalizeParams(form.promo_mechanic, form.mechanic_params),
+          promo_event: form.promo_event,
+          promo_priority: form.promo_priority || null,
+        }
+      : { promo_mechanic: null, mechanic_params: null, promo_event: null, promo_priority: null }
     const basePayload = {
       ...form,
       offer_type: offerType,
       store: storeStr,
       date_ranges: normalizedRanges,
       date_of_entry: todayISO(),
+      ...promoFields,
     }
 
     // All SKUs multi-brand: create one entry per brand
@@ -820,16 +844,21 @@ export default function NewRequest() {
         </Section>
 
         <Section title={`Offer Details — ${offerType}`}>
-          <div className="grid grid-cols-1 gap-4">
-            <Field label="Promotion Name" required>
-              <input className="input-field" placeholder="e.g. November Offer"
-                value={form.promotion_name} onChange={e => set('promotion_name', e.target.value)} />
-            </Field>
-          </div>
+          {isPromo ? (
+            <PromoMechanicFields form={form} set={set} validFrom={form.date_ranges?.[0]?.from} />
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              <Field label="Promotion Name" required>
+                <input className="input-field" placeholder="e.g. November Offer"
+                  value={form.promotion_name} onChange={e => set('promotion_name', e.target.value)} />
+              </Field>
+            </div>
+          )}
 
-          <Field label="Promotion Details" required hint={isPromo ? 'e.g. Flat 20% off on all SKUs' : 'e.g. New RSP ₹319 for Product X'}>
-            <textarea className="input-field min-h-[80px] resize-y" required
-              placeholder={isPromo ? 'Flat 20% off on all SKUs' : 'New RSP ₹319 for Product X'}
+          <Field label={isPromo ? 'Promo Details' : 'Promotion Details'} required={!isPromo}
+            hint={isPromo ? 'Optional — any extra detail about the offer' : 'e.g. New RSP ₹319 for Product X'}>
+            <textarea className="input-field min-h-[80px] resize-y" required={!isPromo}
+              placeholder={isPromo ? 'Any extra detail about the offer' : 'New RSP ₹319 for Product X'}
               value={form.promo_details} onChange={e => set('promo_details', e.target.value)} />
           </Field>
 
