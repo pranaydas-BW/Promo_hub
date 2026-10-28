@@ -472,9 +472,11 @@ export default function NewRequest() {
       date_ranges: normalizedRanges,
       date_of_entry: todayISO(),
       ...promoFields,
-      promo_event: null,
-      promo_priority: null,
     }
+    // Retired fields: never send them (works whether or not those columns still exist, and
+    // stops values carried over from a replicated promo being written back)
+    delete basePayload.promo_event
+    delete basePayload.promo_priority
 
     // All SKUs multi-brand: create one entry per brand
     if (isPromo && isAllSkuMultiBrand && allSkuBrands.length > 1) {
