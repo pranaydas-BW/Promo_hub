@@ -12,12 +12,8 @@ export const PROMO_MECHANICS = [
   { id: 'gift', label: 'Free gift' },
   { id: 'other', label: 'Other' },
 ]
-export const PROMO_EVENTS = ['BAU', 'EOSS', 'Festive Offer', 'Broadway Exclusive', 'Brand Exclusive']
-export const PROMO_PRIORITIES = ['P0', 'P1']
 
 export const mechanicLabel = (id) => PROMO_MECHANICS.find(m => m.id === id)?.label || ''
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 const blank = (x) => x === '' || x == null
 const v = (x) => (blank(x) ? '__' : String(x).trim() || '__')
@@ -98,7 +94,6 @@ export function promoMechanicError(form) {
   if (!form.promo_mechanic) return 'Please choose a promo mechanic.'
   const name = buildPromoName(form.promo_mechanic, form.mechanic_params)
   if (!isPromoNameComplete(name)) return 'Please fill in every blank (__) in the promo mechanic.'
-  if (!form.promo_event) return 'Please choose an event / tier.'
   return ''
 }
 
@@ -123,7 +118,7 @@ const SIMPLE_FIELDS = {
   other: [{ key: 'text', label: 'Describe the offer' }],
 }
 
-export default function PromoMechanicFields({ form, set, validFrom }) {
+export default function PromoMechanicFields({ form, set }) {
   const mechanic = form.promo_mechanic || ''
   const params = form.mechanic_params || {}
   const setParams = (patch) => set('mechanic_params', { ...params, ...patch })
@@ -149,7 +144,6 @@ export default function PromoMechanicFields({ form, set, validFrom }) {
 
   const name = mechanic ? buildPromoName(mechanic, params) : ''
   const complete = isPromoNameComplete(name)
-  const month = validFrom ? MONTHS[Number(String(validFrom).slice(5, 7)) - 1] : ''
 
   return (
     <div className="space-y-4">
@@ -220,28 +214,6 @@ export default function PromoMechanicFields({ form, set, validFrom }) {
           ))}
         </div>
       )}
-
-      <Field label="Event / Tier" required>
-        <div className="flex flex-wrap gap-2">
-          {PROMO_EVENTS.map(ev => (
-            <Pill key={ev} active={form.promo_event === ev} onClick={() => set('promo_event', ev)}>{ev}</Pill>
-          ))}
-        </div>
-      </Field>
-
-      <div className="flex flex-wrap gap-8">
-        <Field label="Priority">
-          <div className="flex gap-2">
-            <Pill active={!form.promo_priority} onClick={() => set('promo_priority', '')}>None</Pill>
-            {PROMO_PRIORITIES.map(p => (
-              <Pill key={p} active={form.promo_priority === p} onClick={() => set('promo_priority', p)}>{p}</Pill>
-            ))}
-          </div>
-        </Field>
-        <Field label="Month" hint="Taken from the Valid From date">
-          <div className="text-sm font-body text-ink py-1.5">{month || '—'}</div>
-        </Field>
-      </div>
 
       <div className="rounded-xl bg-ink text-white p-4">
         <div className="flex items-center justify-between gap-3 mb-2">

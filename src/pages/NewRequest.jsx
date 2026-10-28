@@ -40,8 +40,6 @@ const BLANK_FORM = {
   promotion_name: '',
   promo_mechanic: '',
   mechanic_params: {},
-  promo_event: '',
-  promo_priority: '',
   assortment_type: '',
   discount_on: '',
   date_ranges: [{ ...BLANK_RANGE }],
@@ -180,8 +178,6 @@ function StepReplicate({ onFound, onBack }) {
       ...BLANK_FORM, ...rest,
       promo_mechanic: rest.promo_mechanic || '',
       mechanic_params: formParamsFromStored(rest.promo_mechanic, rest.mechanic_params),
-      promo_event: rest.promo_event || '',
-      promo_priority: rest.promo_priority || '',
       store: Array.isArray(rest.store) ? rest.store : (rest.store || '').split(',').map(s => s.trim()).filter(Boolean),
       date_ranges: [{ ...BLANK_RANGE }],
       status: 'Pending', current_status: 'Not Live',
@@ -467,10 +463,8 @@ export default function NewRequest() {
           promotion_name: buildPromoName(form.promo_mechanic, form.mechanic_params),
           promo_mechanic: form.promo_mechanic,
           mechanic_params: normalizeParams(form.promo_mechanic, form.mechanic_params),
-          promo_event: form.promo_event,
-          promo_priority: form.promo_priority || null,
         }
-      : { promo_mechanic: null, mechanic_params: null, promo_event: null, promo_priority: null }
+      : { promo_mechanic: null, mechanic_params: null }
     const basePayload = {
       ...form,
       offer_type: offerType,
@@ -478,6 +472,8 @@ export default function NewRequest() {
       date_ranges: normalizedRanges,
       date_of_entry: todayISO(),
       ...promoFields,
+      promo_event: null,
+      promo_priority: null,
     }
 
     // All SKUs multi-brand: create one entry per brand
@@ -845,7 +841,7 @@ export default function NewRequest() {
 
         <Section title={`Offer Details — ${offerType}`}>
           {isPromo ? (
-            <PromoMechanicFields form={form} set={set} validFrom={form.date_ranges?.[0]?.from} />
+            <PromoMechanicFields form={form} set={set} />
           ) : (
             <div className="grid grid-cols-1 gap-4">
               <Field label="Promotion Name" required>

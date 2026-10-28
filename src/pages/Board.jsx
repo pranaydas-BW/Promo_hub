@@ -69,7 +69,7 @@ export default function Board() {
   const [campaigns, setCampaigns] = useState([])
 
   const COLS = 'id,promo_request_id,brand_names,category,store,poc_name,funded_by,offer_type,' +
-    'promotion_name,promo_details,promo_mechanic,mechanic_params,promo_event,promo_priority,assortment_type,date_ranges,status,current_status,' +
+    'promotion_name,promo_details,promo_mechanic,mechanic_params,assortment_type,date_ranges,status,current_status,' +
     'shopify_promo_status,ginesys_promo_id,shopify_discount_id,app_promo_id,' +
     'campaign_id,broadway_pct_split,brand_pct_split,broadway_discount_pct,' +
     'brand_discount_pct,broadway_discount_both,brand_discount_both,discount_on,' +
@@ -151,8 +151,6 @@ export default function Board() {
       promo_details: r.promo_details,
       promo_mechanic: r.promo_mechanic || null,
       mechanic_params: r.mechanic_params || null,
-      promo_event: r.promo_event || null,
-      promo_priority: r.promo_priority || null,
       assortment_type: r.assortment_type,
       date_ranges: r.date_ranges,
       campaign_id: r.campaign_id,
@@ -239,8 +237,6 @@ export default function Board() {
                   offer_type: r.offer_type || '',
                   promotion_name: r.promotion_name || '',
                   promo_mechanic: mechanicLabel(r.promo_mechanic),
-                  promo_event: r.promo_event || '',
-                  promo_priority: r.promo_priority || '',
                   promo_details: r.promo_details || '',
                   assortment_type: r.assortment_type || '',
                   broadway_discount_pct: r.broadway_discount_pct || r.broadway_discount_both || r.broadway_pct_split || '',
@@ -615,8 +611,6 @@ function PromoRow({ row: r, expanded, onToggle, onPatch, updating, isAdmin, allR
               ['Shopify Discount ID', r.shopify_discount_id],
               ['Promotion Name', r.promotion_name],
               ['Promo Mechanic', mechanicLabel(r.promo_mechanic)],
-              ['Event / Tier', r.promo_event],
-              ['Priority', r.promo_priority],
               ['Type of Offer', r.offer_type],
               ['Live Status', effectiveCurrentStatus],
               ['Status Updated By', r.status_updated_by ? `${r.status_updated_by.split('@')[0]} · ${r.status_updated_at ? new Date(r.status_updated_at).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'2-digit' }) : ''}` : null],
