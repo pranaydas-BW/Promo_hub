@@ -98,7 +98,9 @@ Deno.serve(async (_req) => {
     const out: any[] = [];
     for (const r of liveToday) {
       const ranges = Array.isArray(r.date_ranges) ? r.date_ranges : [];
-      const endDate = ranges[0] ? ranges[0].till : "";
+      const liveRange = ranges.find((dr: any) => dr.from <= today && dr.till >= today) || ranges[0] || {};
+      const endDate = liveRange.till || "";
+      const startDate = liveRange.from || "";
 
       if (r.assortment_type === "Selected SKUs" && r.sku_file_link) {
         try {
@@ -126,7 +128,9 @@ Deno.serve(async (_req) => {
                 mrp: anyInv.mrp || "",
                 rsp: anyInv.rsp || "",
                 stock,
+                from: startDate,
                 till: endDate,
+                stores: r.store || "",
                 category: r.category || "",
                 details: r.promo_details || "",
                 ginesys: r.ginesys_promo_id || "",
@@ -144,7 +148,9 @@ Deno.serve(async (_req) => {
           mrp: "",
           rsp: "",
           stock: {},
+          from: startDate,
           till: endDate,
+          stores: r.store || "",
           category: r.category || "",
           details: r.promo_details || "",
           ginesys: r.ginesys_promo_id || "",

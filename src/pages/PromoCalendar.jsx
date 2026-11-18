@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
@@ -39,6 +39,15 @@ export default function TodayPromos() {
   const [dailyFile, setDailyFile] = useState(null)
   const [dailyFileLoading, setDailyFileLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [dailyStart, setDailyStart] = useState('') // '' = today
+  const [dailyEnd, setDailyEnd] = useState('')
+  const [rangeData, setRangeData] = useState([])
+  const [rangeLoading, setRangeLoading] = useState(false)
+  const [rangeProgress, setRangeProgress] = useState('')
+  const [rangeLoadedAt, setRangeLoadedAt] = useState(null)
+  const invCache = useRef({})
+  const skuCache = useRef({})
+  const rangeReq = useRef(0)
   const [selectedSkuOpen, setSelectedSkuOpen] = useState(true)
   const [openCategories, setOpenCategories] = useState({})
   const [allSkuOpen, setAllSkuOpen] = useState(true)
@@ -313,7 +322,10 @@ export default function TodayPromos() {
     await Promise.all(CITY_TABS.map(async tab => { cityMaps[tab] = await fetchInvTab(tab) }))
     const out = []
     for (const r of allLiveTodayOffline) {
-      const endDate = Array.isArray(r.date_ranges) && r.date_ranges[0] ? r.date_ranges[0].till : ''
+      const ranges = Array.isArray(r.date_ranges) ? r.date_ranges : []
+      const liveRange = ranges.find(dr => dr.from <= today && dr.till >= today) || ranges[0] || {}
+      const endDate = liveRange.till || ''
+      const startDate = liveRange.from || ''
       if (r.assortment_type === 'Selected SKUs' && r.sku_file_link) {
         try {
           const res = await fetch(r.sku_file_link)
@@ -330,12 +342,12 @@ export default function TodayPromos() {
               CITY_TABS.forEach(tab => {
                 stock[tab] = { wh: (cityMaps[tab][bc] || {}).wh_stock || '', store: (cityMaps[tab][bc] || {}).store_stock || '' }
               })
-              out.push({ brand: r.brand_names, promo: r.promotion_name, sku: bc, mrp: anyInv.mrp || '', rsp: anyInv.rsp || '', stock, till: endDate, category: r.category || '', details: r.promo_details || '', ginesys: r.ginesys_promo_id || '' })
+              out.push({ brand: r.brand_names, promo: r.promotion_name, sku: bc, mrp: anyInv.mrp || '', rsp: anyInv.rsp || '', stock, from: startDate, till: endDate, stores: r.store || '', category: r.category || '', details: r.promo_details || '', ginesys: r.ginesys_promo_id || '' })
             })
           }
         } catch (e) { /* skip this promo's SKU rows if its file can't be fetched */ }
       } else {
-        out.push({ brand: r.brand_names, promo: r.promotion_name, sku: 'ALL SKUs', mrp: '', rsp: '', stock: {}, till: endDate, category: r.category || '', details: r.promo_details || '', ginesys: r.ginesys_promo_id || '' })
+        out.push({ brand: r.brand_names, promo: r.promotion_name, sku: 'ALL SKUs', mrp: '', rsp: '', stock: {}, from: startDate, till: endDate, stores: r.store || '', category: r.category || '', details: r.promo_details || '', ginesys: r.ginesys_promo_id || '' })
       }
     }
     return out
@@ -370,7 +382,95 @@ export default function TodayPromos() {
   // Which city's stock columns to show — driven by the top Store filter, not a separate selector.
   // 'All' has no single city's stock to show, so WH/Store stock stay blank in that case.
   const selectedCityTab = BY_CITY_OPTIONS.find(c => c.label === store)?.tab || BY_CITY_OPTIONS[0].tab
-  const dailyRowsForCity = (dailyFile?.data || []).map(x => ({
+
+  // ── Date-range view ───────────────────────────────────────────────────────
+  // Default is today, served from the cached daily file. Picking another period builds the
+  // list live from promo_requests for the city selected in the Store filter.
+  const effStart = dailyStart || today
+  const effEndRaw = dailyEnd || today
+  const effEnd = effEndRaw < effStart ? effStart : effEndRaw
+  const isTodayOnly = effStart === today && effEnd === today
+  const onRangeStart = (v) => { if (!v) return; setDailyStart(v); if (effEnd < v) setDailyEnd(v) }
+  const onRangeEnd = (v) => { if (!v) return; setDailyEnd(v); if (effStart > v) setDailyStart(v) }
+  const resetRange = () => { setDailyStart(''); setDailyEnd('') }
+
+  const getInvMap = async (tab) => {
+    const c = invCache.current[tab]
+    if (c && Date.now() - c.at < 10 * 60 * 1000) return c.map
+    const map = await fetchInvTab(tab)
+    invCache.current[tab] = { at: Date.now(), map }
+    return map
+  }
+
+  const loadRange = async (start, end, { force = false } = {}) => {
+    const reqId = ++rangeReq.current
+    setRangeLoading(true)
+    setRangeProgress('')
+    try {
+      if (force) { invCache.current = {}; skuCache.current = {} }
+      const promos = rows.filter(r =>
+        (r.store || '') !== 'Online' &&
+        (r.store || '').includes(store) &&
+        Array.isArray(r.date_ranges) && r.date_ranges.some(dr => dr.from <= end && dr.till >= start)
+      )
+      const invMap = await getInvMap(selectedCityTab)
+      const results = new Array(promos.length)
+      const queue = promos.map((_, i) => i)
+      let done = 0
+      const worker = async () => {
+        while (queue.length) {
+          const i = queue.shift()
+          const r = promos[i]
+          const dr = r.date_ranges.find(d => d.from <= end && d.till >= start) || r.date_ranges[0] || {}
+          const base = {
+            brand: r.brand_names, promo: r.promotion_name, from: dr.from || '', till: dr.till || '',
+            stores: r.store || '', category: r.category || '', details: r.promo_details || '', ginesys: r.ginesys_promo_id || '',
+          }
+          const list = []
+          if (r.assortment_type === 'Selected SKUs' && r.sku_file_link) {
+            try {
+              let text = skuCache.current[r.sku_file_link]
+              if (text == null) {
+                const res = await fetch(r.sku_file_link)
+                text = await res.text()
+                skuCache.current[r.sku_file_link] = text
+              }
+              const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+              if (lines.length >= 2) {
+                const headers = lines[0].split(',').map(h => h.trim())
+                const bcIdx = headers.findIndex(h => h.toLowerCase().includes('barcode'))
+                if (bcIdx >= 0) lines.slice(1).forEach(line => {
+                  const bc = (line.split(',')[bcIdx] || '').trim()
+                  if (!bc) return
+                  const inv = invMap[bc] || {}
+                  list.push({ ...base, sku: bc, mrp: inv.mrp || '', rsp: inv.rsp || '', stock: { [selectedCityTab]: { wh: inv.wh_stock || '', store: inv.store_stock || '' } } })
+                })
+              }
+            } catch (e) { /* skip this promo's SKU rows if its file can't be fetched */ }
+          } else {
+            list.push({ ...base, sku: 'ALL SKUs', mrp: '', rsp: '', stock: {} })
+          }
+          results[i] = list
+          done++
+          if (reqId === rangeReq.current) setRangeProgress(`${done} of ${promos.length} promos`)
+        }
+      }
+      await Promise.all(Array.from({ length: 6 }, worker))
+      if (reqId !== rangeReq.current) return // a newer request superseded this one
+      setRangeData(results.flat())
+      setRangeLoadedAt(new Date())
+    } finally {
+      if (reqId === rangeReq.current) setRangeLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (calTab !== 'dailyFiles' || isTodayOnly) return
+    loadRange(effStart, effEnd)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calTab, effStart, effEnd, store, rows.length])
+  const sourceRows = isTodayOnly ? (dailyFile?.data || []) : rangeData
+  const dailyRowsForCity = sourceRows.map(x => ({
     ...x,
     wh: x.stock?.[selectedCityTab]?.wh || '',
     store: x.stock?.[selectedCityTab]?.store || '',
@@ -384,7 +484,8 @@ export default function TodayPromos() {
       const st = parseFloat(x.store)
       return (!isNaN(wh) && wh > 0) || (!isNaN(st) && st > 0)
     })
-  const allSkuRows = dailyRowsForCity.filter(x => x.sku === 'ALL SKUs')
+  // Rows from older cached files have no `stores`, so they are kept until the next sync
+  const allSkuRows = dailyRowsForCity.filter(x => x.sku === 'ALL SKUs' && (!x.stores || x.stores.includes(store)))
 
   // New promo_requests live today, created after the cached file was last synced,
   // scoped to the currently selected city.
@@ -409,6 +510,7 @@ export default function TodayPromos() {
       RSP: x.rsp,
       'WH Stock': x.wh,
       'Store Stock': x.store,
+      'Live From': x.from || '',
       'Live Till': x.till,
     }))
     const allSkuExport = allSkuRows.map(x => ({
@@ -417,13 +519,14 @@ export default function TodayPromos() {
       Category: x.category || '',
       'Promo Details': x.details || '',
       'Ginesys Promo ID': x.ginesys || '',
+      'Live From': x.from || '',
       'Live Till': x.till,
     }))
 
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(selectedSkuExport), 'Selected SKUs')
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allSkuExport), 'All SKUs')
-    XLSX.writeFile(wb, `daily-file-${store.replace(/[^a-zA-Z0-9]/g, '_')}-${today}.xlsx`)
+    XLSX.writeFile(wb, `daily-file-${store.replace(/[^a-zA-Z0-9]/g, '_')}-${isTodayOnly ? today : `${effStart}_to_${effEnd}`}.xlsx`)
   }
 
   // ── Pick & Photo Analytics ────────────────────────────────────────────────
@@ -631,7 +734,48 @@ export default function TodayPromos() {
       ) : calTab === 'dailyFiles' ? (
         <div className="space-y-4">
 
-          {/* Sync status bar */}
+          {/* Period selector — default is today */}
+          <div className="flex flex-wrap items-end gap-3 bg-white border border-border rounded-xl px-4 py-3">
+            <label className="flex flex-col gap-1 text-[11px] font-body text-muted uppercase tracking-wide">
+              From
+              <input type="date" value={effStart} onChange={e => onRangeStart(e.target.value)}
+                className="border border-border rounded-lg px-3 py-1.5 text-sm font-body text-ink normal-case bg-white" />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] font-body text-muted uppercase tracking-wide">
+              To
+              <input type="date" value={effEnd} onChange={e => onRangeEnd(e.target.value)}
+                className="border border-border rounded-lg px-3 py-1.5 text-sm font-body text-ink normal-case bg-white" />
+            </label>
+            {!isTodayOnly && (
+              <button onClick={resetRange}
+                className="text-xs font-body font-medium px-3 py-2 rounded-lg border border-border bg-white hover:bg-paper transition-colors">
+                Back to today
+              </button>
+            )}
+            <span className="text-xs font-body text-muted sm:ml-auto">
+              {isTodayOnly
+                ? 'Showing today. Pick a start and end date to see every offer live in a period.'
+                : `Every offer live between ${fmtDate(effStart)} and ${fmtDate(effEnd)}`}
+            </span>
+          </div>
+
+          {!isTodayOnly && (
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-border rounded-xl px-4 py-3">
+              <div className="text-xs font-body text-muted">
+                {rangeLoading
+                  ? `Loading… ${rangeProgress}`
+                  : <>Built live{rangeLoadedAt ? ` at ${rangeLoadedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : ''} · stock figures are <span className="text-ink font-medium">current</span>, not historical, for this period</>}
+              </div>
+              <button onClick={() => loadRange(effStart, effEnd, { force: true })} disabled={rangeLoading}
+                className="flex items-center gap-1.5 bg-white border border-border text-xs font-body font-medium px-3 py-1.5 rounded-lg hover:bg-paper disabled:opacity-50 transition-colors">
+                {rangeLoading ? <Loader2 size={13} className="animate-spin text-muted" /> : <RefreshCw size={13} className="text-muted" />}
+                Refresh
+              </button>
+            </div>
+          )}
+
+          {/* Sync status bar (today's cached file only) */}
+          {isTodayOnly && (
           <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-border rounded-xl px-4 py-3">
             <div className="text-xs font-body text-muted">
               {dailyFileLoading ? 'Checking last sync…' : dailyFile
@@ -653,6 +797,7 @@ export default function TodayPromos() {
               </button>
             </div>
           </div>
+          )}
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs font-body text-muted">
@@ -660,18 +805,18 @@ export default function TodayPromos() {
             </div>
             <button
               onClick={handleByCityExport}
-              disabled={dailyFileLoading || !dailyRowsForCity.length}
+              disabled={(isTodayOnly ? dailyFileLoading : rangeLoading) || !dailyRowsForCity.length}
               className="flex items-center gap-1.5 bg-white border border-border text-sm font-body px-3 py-2 rounded-lg hover:bg-paper disabled:opacity-40 transition-colors">
               <Download size={14} className="text-muted" /> Download Excel
             </button>
           </div>
 
-          {dailyFileLoading ? (
+          {(isTodayOnly ? dailyFileLoading : rangeLoading) ? (
             <div className="flex justify-center items-center h-48 gap-2 text-muted">
               <Loader2 size={18} className="animate-spin" />
-              <span className="text-sm">Loading today's file…</span>
+              <span className="text-sm">{isTodayOnly ? "Loading today's file…" : `Loading offers for the period… ${rangeProgress}`}</span>
             </div>
-          ) : !dailyFile ? (
+          ) : (isTodayOnly && !dailyFile) ? (
             <div className="flex flex-col justify-center items-center h-48 gap-3 text-muted">
               <span className="text-sm">No daily file yet — the automated sync runs at 6:00 AM IST, or click Sync again to build it now.</span>
             </div>
@@ -702,6 +847,7 @@ export default function TodayPromos() {
                         <th className="text-left px-4 py-2.5">RSP</th>
                         <th className="text-left px-4 py-2.5">WH Stock</th>
                         <th className="text-left px-4 py-2.5">Store Stock</th>
+                        <th className="text-left px-4 py-2.5">Live From</th>
                         <th className="text-left px-4 py-2.5">Live Till</th>
                       </tr>
                     </thead>
@@ -718,11 +864,12 @@ export default function TodayPromos() {
                           <td className="px-4 py-2.5">{x.rsp || <span className="text-muted">—</span>}</td>
                           <td className="px-4 py-2.5">{x.wh || <span className="text-muted">—</span>}</td>
                           <td className="px-4 py-2.5">{x.store || <span className="text-muted">—</span>}</td>
+                          <td className="px-4 py-2.5">{x.from ? fmtDate(x.from) : <span className="text-muted">—</span>}</td>
                           <td className="px-4 py-2.5">{fmtDate(x.till)}</td>
                         </tr>
                       ))}
                       {!selectedSkuRows.length && (
-                        <tr><td colSpan={11} className="px-4 py-8 text-center text-muted">No Selected-SKU promos found.</td></tr>
+                        <tr><td colSpan={12} className="px-4 py-8 text-center text-muted">No Selected-SKU promos found.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -749,6 +896,7 @@ export default function TodayPromos() {
                         <th className="text-left px-4 py-2.5">Category</th>
                         <th className="text-left px-4 py-2.5">Promo Details</th>
                         <th className="text-left px-4 py-2.5">Ginesys ID</th>
+                        <th className="text-left px-4 py-2.5">Live From</th>
                         <th className="text-left px-4 py-2.5">Live Till</th>
                       </tr>
                     </thead>
@@ -760,11 +908,12 @@ export default function TodayPromos() {
                           <td className="px-4 py-2.5">{x.category || <span className="text-muted">—</span>}</td>
                           <td className="px-4 py-2.5 max-w-xs truncate" title={x.details}>{x.details || <span className="text-muted">—</span>}</td>
                           <td className="px-4 py-2.5">{x.ginesys || <span className="text-muted">—</span>}</td>
+                          <td className="px-4 py-2.5">{x.from ? fmtDate(x.from) : <span className="text-muted">—</span>}</td>
                           <td className="px-4 py-2.5">{fmtDate(x.till)}</td>
                         </tr>
                       ))}
                       {!allSkuRows.length && (
-                        <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">No All-SKU promos found.</td></tr>
+                        <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">No All-SKU promos found.</td></tr>
                       )}
                     </tbody>
                   </table>
