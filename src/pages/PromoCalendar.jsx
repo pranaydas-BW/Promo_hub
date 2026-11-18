@@ -14,6 +14,26 @@ function addDays(dateStr, n) {
   return d.toISOString().split('T')[0]
 }
 
+// Minimal CSV -> records parser (handles quoted commas/newlines)
+function parseCsvRecords(csv) {
+  const records = []; let cur = '', inQ = false, fields = []
+  for (let i = 0; i < csv.length; i++) {
+    const ch = csv[i], next = csv[i + 1]
+    if (ch === '"') { if (inQ && next === '"') { cur += '"'; i++ } else { inQ = !inQ } }
+    else if (ch === ',' && !inQ) { fields.push(cur.trim()); cur = '' }
+    else if ((ch === '\n' || ch === '\r') && !inQ) {
+      if (ch === '\r' && next === '\n') i++
+      fields.push(cur.trim()); cur = ''
+      if (fields.some(f => f.length > 0)) records.push(fields); fields = []
+    } else { cur += ch }
+  }
+  if (cur || fields.length) { fields.push(cur.trim()); if (fields.some(f => f.length > 0)) records.push(fields) }
+  return records
+}
+
+// Brand names are typed by hand in requests, so compare them ignoring case, spaces and punctuation
+const normBrand = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
 function isNew(row) {
   if (!row.created_at) return false
   const created = new Date(row.created_at)
@@ -39,6 +59,7 @@ export default function TodayPromos() {
   const [dailyFile, setDailyFile] = useState(null)
   const [dailyFileLoading, setDailyFileLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [brandTotals, setBrandTotals] = useState(null) // { 'brand|location': {wh, store, total} }
   const [dailyStart, setDailyStart] = useState('') // '' = today
   const [dailyEnd, setDailyEnd] = useState('')
   const [rangeData, setRangeData] = useState([])
@@ -301,10 +322,10 @@ export default function TodayPromos() {
   }
 
   const BY_CITY_OPTIONS = [
-    { label: 'VK, Delhi', tab: 'VK Delhi' },
-    { label: 'BH, Hyderabad', tab: 'BH HYD' },
-    { label: 'Pune', tab: 'Pune' },
-    { label: 'Mumbai', tab: 'Mumbai' },
+    { label: 'VK, Delhi', tab: 'VK Delhi', loc: 'Delhi' },
+    { label: 'BH, Hyderabad', tab: 'BH HYD', loc: 'Hyderabad' },
+    { label: 'Pune', tab: 'Pune', loc: 'Pune' },
+    { label: 'Mumbai', tab: 'Mumbai', loc: 'Mumbai' },
   ]
   const CITY_TABS = BY_CITY_OPTIONS.map(c => c.tab)
 
@@ -369,7 +390,7 @@ export default function TodayPromos() {
       const combined = await buildCombinedDailyRows()
       const payload = { sync_date: today, synced_at: new Date().toISOString(), synced_by: user?.email || 'unknown', data: combined }
       const { data, error } = await supabase.from('daily_sync_files').upsert(payload, { onConflict: 'sync_date' }).select().maybeSingle()
-      if (error) { alert('Sync failed: ' + error.message) } else { setDailyFile(data) }
+      if (error) { alert('Sync failed: ' + error.message) } else { setDailyFile(data); loadBrandTotals() }
     } catch (e) { alert('Sync failed: ' + e.message) }
     setSyncing(false)
   }
@@ -469,6 +490,38 @@ export default function TodayPromos() {
     loadRange(effStart, effEnd)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calTab, effStart, effEnd, store, rows.length])
+  // Brand-level stock comes from the inventory sheet's "Brand Total Inventory" tab (Brand | Location | WH | Store | Total).
+  // It is read live when the tab opens, so it can be newer than the 6 AM snapshot used for SKU-level stock.
+  const loadBrandTotals = async () => {
+    try {
+      const url = `https://docs.google.com/spreadsheets/d/${INVENTORY_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Brand Total Inventory')}`
+      const res = await fetch(url)
+      if (!res.ok) return
+      const records = parseCsvRecords(await res.text())
+      if (records.length < 2) return
+      const h = records[0].map(x => x.toLowerCase())
+      const bi = h.indexOf('brand'), li = h.indexOf('location')
+      const wi = h.findIndex(x => x.includes('warehouse')), si = h.findIndex(x => x.includes('store')), ti = h.indexOf('total')
+      if (bi < 0 || li < 0 || ti < 0) return
+      const n = (x) => Number(String(x ?? '').replace(/,/g, '')) || 0
+      const map = {}
+      records.slice(1).forEach(row => {
+        const key = `${normBrand(row[bi])}|${(row[li] || '').trim().toLowerCase()}`
+        const prev = map[key] || { wh: 0, store: 0, total: 0 }
+        map[key] = { wh: prev.wh + n(row[wi]), store: prev.store + n(row[si]), total: prev.total + n(row[ti]) }
+      })
+      setBrandTotals(map)
+    } catch (e) { /* leave as is: the column shows — */ }
+  }
+
+  useEffect(() => {
+    if (calTab === 'dailyFiles') loadBrandTotals()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calTab])
+
+  const selectedLocation = (BY_CITY_OPTIONS.find(c => c.label === store)?.loc || '').toLowerCase()
+  const brandStockFor = (brand) => (brandTotals ? brandTotals[`${normBrand(brand)}|${selectedLocation}`] || null : null)
+
   const sourceRows = isTodayOnly ? (dailyFile?.data || []) : rangeData
   const dailyRowsForCity = sourceRows.map(x => ({
     ...x,
@@ -513,15 +566,21 @@ export default function TodayPromos() {
       'Live From': x.from || '',
       'Live Till': x.till,
     }))
-    const allSkuExport = allSkuRows.map(x => ({
-      Brand: x.brand || '',
-      Promotion: x.promo || '',
-      Category: x.category || '',
-      'Promo Details': x.details || '',
-      'Ginesys Promo ID': x.ginesys || '',
-      'Live From': x.from || '',
-      'Live Till': x.till,
-    }))
+    const allSkuExport = allSkuRows.map(x => {
+      const bt = brandStockFor(x.brand)
+      return {
+        Brand: x.brand || '',
+        Promotion: x.promo || '',
+        Category: x.category || '',
+        'Promo Details': x.details || '',
+        'Ginesys Promo ID': x.ginesys || '',
+        'Brand WH Stock': bt ? bt.wh : '',
+        'Brand Store Stock': bt ? bt.store : '',
+        'Brand Total Stock': bt ? bt.total : '',
+        'Live From': x.from || '',
+        'Live Till': x.till,
+      }
+    })
 
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(selectedSkuExport), 'Selected SKUs')
@@ -766,7 +825,7 @@ export default function TodayPromos() {
                   ? `Loading… ${rangeProgress}`
                   : <>Built live{rangeLoadedAt ? ` at ${rangeLoadedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : ''} · stock figures are <span className="text-ink font-medium">current</span>, not historical, for this period</>}
               </div>
-              <button onClick={() => loadRange(effStart, effEnd, { force: true })} disabled={rangeLoading}
+              <button onClick={() => { loadBrandTotals(); loadRange(effStart, effEnd, { force: true }) }} disabled={rangeLoading}
                 className="flex items-center gap-1.5 bg-white border border-border text-xs font-body font-medium px-3 py-1.5 rounded-lg hover:bg-paper disabled:opacity-50 transition-colors">
                 {rangeLoading ? <Loader2 size={13} className="animate-spin text-muted" /> : <RefreshCw size={13} className="text-muted" />}
                 Refresh
@@ -847,8 +906,8 @@ export default function TodayPromos() {
                         <th className="text-left px-4 py-2.5">RSP</th>
                         <th className="text-left px-4 py-2.5">WH Stock</th>
                         <th className="text-left px-4 py-2.5">Store Stock</th>
-                        <th className="text-left px-4 py-2.5">Live From</th>
-                        <th className="text-left px-4 py-2.5">Live Till</th>
+                        <th className="text-left px-4 py-2.5 whitespace-nowrap">Live From</th>
+                        <th className="text-left px-4 py-2.5 whitespace-nowrap">Live Till</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -864,8 +923,8 @@ export default function TodayPromos() {
                           <td className="px-4 py-2.5">{x.rsp || <span className="text-muted">—</span>}</td>
                           <td className="px-4 py-2.5">{x.wh || <span className="text-muted">—</span>}</td>
                           <td className="px-4 py-2.5">{x.store || <span className="text-muted">—</span>}</td>
-                          <td className="px-4 py-2.5">{x.from ? fmtDate(x.from) : <span className="text-muted">—</span>}</td>
-                          <td className="px-4 py-2.5">{fmtDate(x.till)}</td>
+                          <td className="px-4 py-2.5 whitespace-nowrap">{x.from ? fmtDate(x.from) : <span className="text-muted">—</span>}</td>
+                          <td className="px-4 py-2.5 whitespace-nowrap">{fmtDate(x.till)}</td>
                         </tr>
                       ))}
                       {!selectedSkuRows.length && (
@@ -896,8 +955,9 @@ export default function TodayPromos() {
                         <th className="text-left px-4 py-2.5">Category</th>
                         <th className="text-left px-4 py-2.5">Promo Details</th>
                         <th className="text-left px-4 py-2.5">Ginesys ID</th>
-                        <th className="text-left px-4 py-2.5">Live From</th>
-                        <th className="text-left px-4 py-2.5">Live Till</th>
+                        <th className="text-left px-4 py-2.5 whitespace-nowrap">Brand Stock</th>
+                        <th className="text-left px-4 py-2.5 whitespace-nowrap">Live From</th>
+                        <th className="text-left px-4 py-2.5 whitespace-nowrap">Live Till</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -908,12 +968,15 @@ export default function TodayPromos() {
                           <td className="px-4 py-2.5">{x.category || <span className="text-muted">—</span>}</td>
                           <td className="px-4 py-2.5 max-w-xs truncate" title={x.details}>{x.details || <span className="text-muted">—</span>}</td>
                           <td className="px-4 py-2.5">{x.ginesys || <span className="text-muted">—</span>}</td>
-                          <td className="px-4 py-2.5">{x.from ? fmtDate(x.from) : <span className="text-muted">—</span>}</td>
-                          <td className="px-4 py-2.5">{fmtDate(x.till)}</td>
+                          <td className="px-4 py-2.5 whitespace-nowrap" title={brandStockFor(x.brand) ? `Warehouse ${brandStockFor(x.brand).wh} · Store ${brandStockFor(x.brand).store}` : 'No matching brand in the inventory sheet'}>
+                            {brandStockFor(x.brand) ? brandStockFor(x.brand).total : <span className="text-muted">—</span>}
+                          </td>
+                          <td className="px-4 py-2.5 whitespace-nowrap">{x.from ? fmtDate(x.from) : <span className="text-muted">—</span>}</td>
+                          <td className="px-4 py-2.5 whitespace-nowrap">{fmtDate(x.till)}</td>
                         </tr>
                       ))}
                       {!allSkuRows.length && (
-                        <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">No All-SKU promos found.</td></tr>
+                        <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">No All-SKU promos found.</td></tr>
                       )}
                     </tbody>
                   </table>
