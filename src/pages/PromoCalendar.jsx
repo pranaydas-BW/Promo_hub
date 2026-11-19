@@ -89,10 +89,19 @@ export default function TodayPromos() {
 
   const load = async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('promo_requests')
-      .select('id,promo_request_id,brand_names,category,store,poc_name,funded_by,offer_type,promotion_name,promo_details,assortment_type,date_ranges,status,current_status,ginesys_promo_id,shopify_discount_id,approval_email,campaign_id,discount_on,sku_file_link,sku_file_name,rsp_file_link,picked_by,picked_at,store_photo_url,store_photo_date,created_at')
-      .order('created_at', { ascending: false })
+    // Supabase returns at most 1000 rows per request, so read in pages until a short page comes back
+    const data = []
+    for (let from = 0; ; from += 1000) {
+      const { data: page, error } = await supabase
+        .from('promo_requests')
+        .select('id,promo_request_id,brand_names,category,store,poc_name,funded_by,offer_type,promotion_name,promo_details,assortment_type,date_ranges,status,current_status,ginesys_promo_id,shopify_discount_id,approval_email,campaign_id,discount_on,sku_file_link,sku_file_name,rsp_file_link,picked_by,picked_at,store_photo_url,store_photo_date,created_at')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, from + 999)
+      if (error || !page) { console.error('Store View load error', error); break }
+      data.push(...page)
+      if (page.length < 1000) break
+    }
     // Only show approved promos
     const approved = (data || []).filter(r => 
       r.status === 'Promo Created - System' || r.current_status === 'Active'

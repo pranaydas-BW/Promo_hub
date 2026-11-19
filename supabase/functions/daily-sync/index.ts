@@ -81,10 +81,19 @@ Deno.serve(async (_req) => {
 
     // Live-today, offline promos — mirrors isOffline(r) && date_ranges overlap today.
     // No category/brand filter here (those are UI-only filters on the manual "Sync again" path).
-    const { data: rows, error: rowsErr } = await supabase
-      .from("promo_requests")
-      .select("brand_names, promotion_name, assortment_type, sku_file_link, store, date_ranges, category, promo_details, ginesys_promo_id");
-    if (rowsErr) throw rowsErr;
+    // Supabase returns at most 1000 rows per request, so read in pages until a short page comes back
+    const rows: any[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data: page, error: rowsErr } = await supabase
+        .from("promo_requests")
+        .select("brand_names, promotion_name, assortment_type, sku_file_link, store, date_ranges, category, promo_details, ginesys_promo_id")
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, from + 999);
+      if (rowsErr) throw rowsErr;
+      rows.push(...(page || []));
+      if (!page || page.length < 1000) break;
+    }
 
     const liveToday = (rows || []).filter((r: any) => {
       if ((r.store || "") === "Online") return false;

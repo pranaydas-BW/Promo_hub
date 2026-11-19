@@ -86,28 +86,42 @@ export default function Board() {
     sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
     const cutoff = sixtyDaysAgo.toISOString()
 
+    // Supabase returns at most 1000 rows per request, so every tier is read page by page.
+    // (Without this, anything beyond the newest 1000 rows of a tier silently never appears.)
+    const PAGE = 1000
+    const fetchAll = async (build) => {
+      const out = []
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await build()
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: true })
+          .range(from, from + PAGE - 1)
+        if (error || !data) { console.error('Board load error', error); break }
+        out.push(...data)
+        if (data.length < PAGE) break
+      }
+      return out
+    }
+
     // Tier 1: active promos within 60 days — show immediately
-    const { data: tier1 } = await supabase.from('promo_requests').select(COLS)
+    const tier1 = await fetchAll(() => supabase.from('promo_requests').select(COLS)
       .in('status', ACTIVE_STATUSES)
-      .gte('created_at', cutoff)
-      .order('created_at', { ascending: false })
+      .gte('created_at', cutoff))
     setRows(tier1 || [])
     setLoading(false)
 
     // Tier 2: other statuses within 60 days — merge in background
-    const { data: tier2 } = await supabase.from('promo_requests').select(COLS)
+    const tier2 = await fetchAll(() => supabase.from('promo_requests').select(COLS)
       .not('status', 'in', `(${ACTIVE_STATUSES.map(s => `"${s}"`).join(',')})`)
-      .gte('created_at', cutoff)
-      .order('created_at', { ascending: false })
+      .gte('created_at', cutoff))
     if (tier2?.length) setRows(prev => {
       const ids = new Set(prev.map(r => r.id))
       return [...prev, ...tier2.filter(r => !ids.has(r.id))]
     })
 
     // Tier 3: all promos older than 60 days — merge last
-    const { data: tier3 } = await supabase.from('promo_requests').select(COLS)
-      .lt('created_at', cutoff)
-      .order('created_at', { ascending: false })
+    const tier3 = await fetchAll(() => supabase.from('promo_requests').select(COLS)
+      .lt('created_at', cutoff))
     if (tier3?.length) setRows(prev => {
       const ids = new Set(prev.map(r => r.id))
       return [...prev, ...tier3.filter(r => !ids.has(r.id))]
