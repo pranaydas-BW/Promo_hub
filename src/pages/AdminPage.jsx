@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { useSettings } from '../lib/SettingsContext'
+import { isAllowedEmail, ALLOWED_DOMAINS_TEXT } from '../lib/domains'
 import { Loader2, Trash2, Plus, ShieldCheck, AlertCircle, Tag, Calendar } from 'lucide-react'
 
 export default function AdminPage() {
@@ -43,8 +44,8 @@ export default function AdminPage() {
   const addAdmin = async () => {
     setError(null); setSuccess(null)
     const email = newEmail.trim().toLowerCase()
-    if (!email.endsWith('@broadwaylive.in')) {
-      setError('Only @broadwaylive.in emails can be admins.')
+    if (!isAllowedEmail(email)) {
+      setError(`Only ${ALLOWED_DOMAINS_TEXT} emails can be admins.`)
       return
     }
     setAdding(true)

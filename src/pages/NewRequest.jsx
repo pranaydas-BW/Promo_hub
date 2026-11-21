@@ -6,6 +6,7 @@ import {
 } from '../lib/constants.jsx'
 import { Section, Field, StoreToggle } from '../components/FormParts'
 import { useSettings } from '../lib/SettingsContext'
+import { isAllowedEmail, ALLOWED_DOMAINS_TEXT } from '../lib/domains'
 import PromoMechanicFields, { buildPromoName, normalizeParams, promoMechanicError, formParamsFromStored } from '../components/PromoMechanic'
 import {
   CheckCircle, AlertCircle, Loader2, Plus, Trash2,
@@ -86,7 +87,7 @@ function trigger(csv, filename) {
   URL.revokeObjectURL(url)
 }
 
-function isValidPOCEmail(e) { return /^[a-zA-Z0-9._%+-]+@broadwaylive\.in$/.test(e) }
+function isValidPOCEmail(e) { return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+$/.test(e) && isAllowedEmail(e) }
 
 // ─── Step 1: Entry type (now includes Promo Closure) ─────────────────────────
 function StepEntryType({ onChoose }) {
@@ -401,7 +402,7 @@ export default function NewRequest() {
 
   const handlePOCBlur = () => {
     if (form.poc_name && !isValidPOCEmail(form.poc_name))
-      setPocError('Must be a valid @broadwaylive.in email')
+      setPocError(`Must be a valid ${ALLOWED_DOMAINS_TEXT} email`)
     else setPocError('')
   }
 
@@ -420,7 +421,7 @@ export default function NewRequest() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!isValidPOCEmail(form.poc_name)) { setPocError('Must be a valid @broadwaylive.in email'); return }
+    if (!isValidPOCEmail(form.poc_name)) { setPocError(`Must be a valid ${ALLOWED_DOMAINS_TEXT} email`); return }
     if (splitError) return
     setLoading(true); setError(null)
     const validRanges = form.date_ranges.filter(r => r.from && (r.till || (isRSP && !wantReversal)))
@@ -721,7 +722,7 @@ export default function NewRequest() {
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
-            <Field label="POC Mail ID" required hint="Must be @broadwaylive.in">
+            <Field label="POC Mail ID" required hint={`Must be ${ALLOWED_DOMAINS_TEXT}`}>
               <input
                 className={`input-field ${pocError ? 'border-danger' : ''}`}
                 required type="email" placeholder="name@broadwaylive.in"

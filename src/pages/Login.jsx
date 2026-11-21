@@ -1,5 +1,6 @@
 import { useAuth } from '../lib/AuthContext'
 import { Tag, AlertCircle } from 'lucide-react'
+import { ALLOWED_DOMAINS_TEXT } from '../lib/domains'
 
 export default function Login() {
   const { signInWithGoogle, authError } = useAuth()
@@ -46,7 +47,7 @@ export default function Login() {
           )}
 
           <p className="text-center text-[11px] text-muted font-body mt-5">
-            Only <span className="font-medium">@broadwaylive.in</span> accounts are allowed
+            Only <span className="font-medium">{ALLOWED_DOMAINS_TEXT}</span> accounts are allowed
           </p>
         </div>
       </div>

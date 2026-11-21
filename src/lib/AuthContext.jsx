@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { isAllowedEmail, ALLOWED_DOMAINS_TEXT } from './domains'
 
 const AuthContext = createContext({})
 
@@ -33,10 +34,10 @@ export function AuthProvider({ children }) {
 
     const email = session.user.email
 
-    // Block non-broadwaylive.in emails
-    if (!email?.endsWith('@broadwaylive.in')) {
+    // Block emails outside the allowed company domains
+    if (!isAllowedEmail(email)) {
       await supabase.auth.signOut()
-      setAuthError('Only @broadwaylive.in email addresses are allowed.')
+      setAuthError(`Only ${ALLOWED_DOMAINS_TEXT} email addresses are allowed.`)
       setUser(null)
       setIsAdmin(false)
       setLoading(false)
@@ -63,7 +64,7 @@ export function AuthProvider({ children }) {
       options: {
         redirectTo: window.location.origin,
         queryParams: {
-          hd: 'broadwaylive.in', // hint Google to show only broadwaylive.in accounts
+          hd: '*', // hint Google to show work (Workspace) accounts only; the real check is isAllowedEmail()
         },
       },
     })
