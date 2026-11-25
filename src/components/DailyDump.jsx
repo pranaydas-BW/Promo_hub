@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { Download, RefreshCw, Loader2, ChevronDown, ChevronRight } from 'lucide-react'
-import { DUMP_TABS, PAGE_PARTS, assembleTab, buildWorkbook, saveWorkbook, summariseMeta } from '../lib/dumpExcel'
+import { fetchTab } from '../lib/dumpFetch'
+import { DUMP_TABS, assembleTab, buildWorkbook, saveWorkbook, summariseMeta } from '../lib/dumpExcel'
 
 const ROWS_PER_PAGE = 100
 const LOAD_ORDER = ['Brand Level Promotion', 'Brand Level RSP', 'SKU Level RSP', 'SKU Level Promotion'] // small tabs first
@@ -11,18 +12,6 @@ const MONO = new Set(['Barcode', 'Promo ID'])
 const fmtUpdated = (iso) => iso
   ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true })
   : ''
-
-async function fetchTab(tab) {
-  const all = []
-  for (let from = 0; ; from += PAGE_PARTS) {
-    const { data, error } = await supabase.from('export_dump').select('part, headers, rows')
-      .eq('tab', tab).order('part').range(from, from + PAGE_PARTS - 1)
-    if (error) throw new Error(error.message)
-    all.push(...(data || []))
-    if (!data || data.length < PAGE_PARTS) break
-  }
-  return all
-}
 
 // rows of a tab that run in the chosen store (the "Store" column lists a promo's stores)
 export function rowsForStore(tab, store) {

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { exportCSV, todayISO, fmtDate } from '../lib/constants.jsx'
 import { Download, Loader2, TrendingUp, AlertTriangle, Star, ExternalLink } from 'lucide-react'
 import { useSettings } from '../lib/SettingsContext'
+import StoreAnalytics from '../components/StoreAnalytics'
 
 const CATEGORIES = [
   'All Categories',
@@ -347,6 +348,7 @@ export default function Analytics() {
     { id: 'dayview', label: '📅 Day View' },
     { id: 'ending', label: '⏰ Ending Soon' },
     { id: 'onlineoffline', label: '🌐 Online vs Offline' },
+    { id: 'storeanalytics', label: '🏬 Store analytics' },
   ]
 
   // #2 — show top brands toggle on all tabs
@@ -461,8 +463,8 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
+      {/* Filters (not used by Store analytics, which has its own store selector) */}
+      <div className={`items-center gap-3 mb-6 flex-wrap ${tab === 'storeanalytics' ? 'hidden' : 'flex'}`}>
         <span className="text-xs font-mono text-muted uppercase tracking-widest">Filter</span>
         <select
           className="bg-white border border-border rounded-lg px-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-accent/20"
@@ -524,7 +526,9 @@ export default function Analytics() {
         ))}
       </div>
 
-      {loading ? (
+      {tab === 'storeanalytics' ? (
+        <StoreAnalytics />
+      ) : loading ? (
         <div className="flex justify-center items-center h-48 gap-2 text-muted">
           <Loader2 size={18} className="animate-spin" /><span className="text-sm">Loading analytics…</span>
         </div>
