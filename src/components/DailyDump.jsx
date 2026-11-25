@@ -8,6 +8,8 @@ const ROWS_PER_PAGE = 100
 const LOAD_ORDER = ['Brand Level Promotion', 'Brand Level RSP', 'SKU Level RSP', 'SKU Level Promotion'] // small tabs first
 const LONG_TEXT = new Set(['Promotion Name', 'Promo Details', 'SKU Name', 'Item Name'])
 const MONO = new Set(['Barcode', 'Promo ID'])
+// Online promos have no store stock, so those columns are left out when "Online" is chosen
+const isStockCol = (h) => /^(Brand|SKU) SOH /.test(h)
 
 const fmtUpdated = (iso) => iso
   ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true })
@@ -56,6 +58,8 @@ export default function DailyDump({ store = '' }) {
   const allLoaded = hasData && DUMP_TABS.every(t => !meta[t] || data[t])
   const latest = Object.values(meta).reduce((a, m) => (m.updated > a ? m.updated : a), '')
   const anyLoading = DUMP_TABS.some(t => loading[t])
+  const online = store === 'Online'
+  const keepCol = (h) => !(online && isStockCol(h))
   const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')
 
   const exportExcel = async (onlyStore) => {
@@ -63,7 +67,12 @@ export default function DailyDump({ store = '' }) {
     await new Promise(r => setTimeout(r, 60)) // let the button state show before the heavy work
     try {
       const by = {}
-      DUMP_TABS.forEach(t => { by[t] = data[t] ? { headers: data[t].headers, rows: onlyStore ? filtered[t] : data[t].rows } : { headers: [], rows: [] } })
+      DUMP_TABS.forEach(t => {
+        if (!data[t]) { by[t] = { headers: [], rows: [] }; return }
+        const idx = data[t].headers.map((h, i) => (onlyStore && !keepCol(h)) ? -1 : i).filter(i => i >= 0)
+        const src = onlyStore ? filtered[t] : data[t].rows
+        by[t] = { headers: idx.map(i => data[t].headers[i]), rows: src.map(r => idx.map(i => r[i])) }
+      })
       const slug = onlyStore ? '-' + store.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : '-all-stores'
       saveWorkbook(buildWorkbook(by), `promo-export${slug}-${stamp}.xlsx`)
     } catch (e) { setErr('Download failed: ' + (e.message || e)) }
@@ -76,7 +85,7 @@ export default function DailyDump({ store = '' }) {
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-border rounded-xl px-4 py-3">
         <div className="text-xs font-body text-muted">
           {!metaLoaded ? 'Checking the latest export…' : hasData
-            ? <>Same data as the <span className="text-ink font-medium">Broadway Promo Export</span> sheet · last updated <span className="text-ink font-medium">{fmtUpdated(latest)}</span> · refreshed about every 2 hours</>
+            ? <>Same data as the <span className="text-ink font-medium">Broadway Promo Export</span> sheet, plus online promos · last updated <span className="text-ink font-medium">{fmtUpdated(latest)}</span> · refreshed about every 2 hours</>
             : 'No export has been saved here yet. It appears after the Google Sheet export runs.'}
         </div>
         <button onClick={loadAll} disabled={anyLoading}
@@ -90,14 +99,14 @@ export default function DailyDump({ store = '' }) {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-xs font-body text-muted">
-          Showing promos running in <span className="text-ink font-medium">{store || 'all stores'}</span> — change store using the Store filter above
+          Showing promos running in <span className="text-ink font-medium">{store || 'all stores'}</span> — change store using the Store filter above{store === 'Online' ? ' · no stock columns for Online' : ''}
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => exportExcel(true)} disabled={!allLoaded || busy}
             className="flex items-center gap-1.5 bg-white border border-border text-sm font-body px-3 py-2 rounded-lg hover:bg-paper disabled:opacity-40 transition-colors">
             {busy ? <Loader2 size={14} className="animate-spin text-muted" /> : <Download size={14} className="text-muted" />} Download Excel
           </button>
-          <button onClick={() => exportExcel(false)} disabled={!allLoaded || busy}
+          <button onClick={() => exportExcel(false)} disabled={!allLoaded || busy} title="Everything: all stores and online, all columns"
             className="flex items-center gap-1.5 bg-white border border-border text-xs font-body text-muted px-3 py-2 rounded-lg hover:bg-paper disabled:opacity-40 transition-colors">
             All stores
           </button>
@@ -107,6 +116,7 @@ export default function DailyDump({ store = '' }) {
       {/* One collapsible section per tab, with the Excel's columns */}
       {DUMP_TABS.map(tab => {
         const t = data[tab], rows = filtered[tab] || [], isOpen = open[tab]
+        const cols = t ? t.headers.map((h, c) => ({ h, c })).filter(x => keepCol(x.h)) : []
         const pg = Math.min(page[tab] || 0, Math.max(0, Math.ceil(rows.length / ROWS_PER_PAGE) - 1))
         const slice = rows.slice(pg * ROWS_PER_PAGE, (pg + 1) * ROWS_PER_PAGE)
         return (
@@ -133,13 +143,13 @@ export default function DailyDump({ store = '' }) {
                     <table className="w-full text-sm font-body">
                       <thead>
                         <tr className="bg-paper text-[11px] uppercase tracking-wide text-muted">
-                          {t.headers.map(h => <th key={h} className="text-left px-4 py-2.5 whitespace-nowrap">{h}</th>)}
+                          {cols.map(({ h }) => <th key={h} className="text-left px-4 py-2.5 whitespace-nowrap">{h}</th>)}
                         </tr>
                       </thead>
                       <tbody>
                         {slice.map((r, i) => (
                           <tr key={i} className="border-t border-border">
-                            {t.headers.map((h, c) => {
+                            {cols.map(({ h, c }) => {
                               const v = r[c]
                               const empty = v === '' || v == null
                               return (
@@ -152,7 +162,7 @@ export default function DailyDump({ store = '' }) {
                           </tr>
                         ))}
                         {!rows.length && (
-                          <tr><td colSpan={t.headers.length || 1} className="px-4 py-8 text-center text-muted">No promos for {store || 'these filters'} in this tab.</td></tr>
+                          <tr><td colSpan={cols.length || 1} className="px-4 py-8 text-center text-muted">No promos for {store || 'these filters'} in this tab.</td></tr>
                         )}
                       </tbody>
                     </table>

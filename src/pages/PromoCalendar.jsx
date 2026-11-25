@@ -53,6 +53,8 @@ export default function TodayPromos() {
 
   const [campaigns, setCampaigns] = useState([])
   const [calTab, setCalTab] = useState('today')
+  // "Online" is only a choice on Download daily files; leaving that tab puts the store back to a real one
+  useEffect(() => { if (calTab !== 'dailyFiles' && store === 'Online') setStore(STORES[0]) }, [calTab, store])
   const [liveExporting, setLiveExporting] = useState(false)
   const [liveCategory, setLiveCategory] = useState('All')
   const [liveBrand, setLiveBrand] = useState('')
@@ -679,7 +681,7 @@ export default function TodayPromos() {
           <Store size={12} /> Store
         </div>
         <div className="flex gap-1.5">
-          {STORES.map(s => (
+          {[...STORES, ...(calTab === 'dailyFiles' ? ['Online'] : [])].map(s => (
             <button key={s} onClick={() => setStore(s)}
               className={`px-3 py-1.5 rounded-lg text-xs font-body border transition-colors ${
                 store === s
