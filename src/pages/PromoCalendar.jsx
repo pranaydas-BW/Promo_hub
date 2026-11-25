@@ -788,7 +788,7 @@ export default function TodayPromos() {
           />
         </div>
       ) : calTab === 'dailyFiles' ? (
-        <DailyDump />
+        <DailyDump store={store} />
       ) : calTab === 'pickPhoto' ? (
         <div className="space-y-4">
           <div className="text-xs font-body text-muted bg-white border border-border rounded-xl px-4 py-3">
