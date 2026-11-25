@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { useSettings } from '../lib/SettingsContext'
+import DailyDump from '../components/DailyDump'
 import { StatusBadge, CurrentStatusDot, exportCSV, fmtDate, todayISO } from '../lib/constants.jsx'
 import { Download, RefreshCw, CalendarCheck, CalendarX, Loader2, ExternalLink, Store, Tag, ChevronDown, ChevronRight } from 'lucide-react'
 
@@ -404,10 +405,6 @@ export default function TodayPromos() {
     setSyncing(false)
   }
 
-  useEffect(() => {
-    if (calTab === 'dailyFiles' && !dailyFile) loadDailyFile()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [calTab])
 
   // Which city's stock columns to show — driven by the top Store filter, not a separate selector.
   // 'All' has no single city's stock to show, so WH/Store stock stay blank in that case.
@@ -494,11 +491,6 @@ export default function TodayPromos() {
     }
   }
 
-  useEffect(() => {
-    if (calTab !== 'dailyFiles' || isTodayOnly) return
-    loadRange(effStart, effEnd)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [calTab, effStart, effEnd, store, rows.length])
   // Brand-level stock comes from the inventory sheet's "Brand Total Inventory" tab (Brand | Location | WH | Store | Total).
   // It is read live when the tab opens, so it can be newer than the 6 AM snapshot used for SKU-level stock.
   const loadBrandTotals = async () => {
@@ -523,10 +515,6 @@ export default function TodayPromos() {
     } catch (e) { /* leave as is: the column shows — */ }
   }
 
-  useEffect(() => {
-    if (calTab === 'dailyFiles') loadBrandTotals()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [calTab])
 
   const selectedLocation = (BY_CITY_OPTIONS.find(c => c.label === store)?.loc || '').toLowerCase()
   const brandStockFor = (brand) => (brandTotals ? brandTotals[`${normBrand(brand)}|${selectedLocation}`] || null : null)
@@ -800,200 +788,7 @@ export default function TodayPromos() {
           />
         </div>
       ) : calTab === 'dailyFiles' ? (
-        <div className="space-y-4">
-
-          {/* Period selector — default is today */}
-          <div className="flex flex-wrap items-end gap-3 bg-white border border-border rounded-xl px-4 py-3">
-            <label className="flex flex-col gap-1 text-[11px] font-body text-muted uppercase tracking-wide">
-              From
-              <input type="date" value={effStart} onChange={e => onRangeStart(e.target.value)}
-                className="border border-border rounded-lg px-3 py-1.5 text-sm font-body text-ink normal-case bg-white" />
-            </label>
-            <label className="flex flex-col gap-1 text-[11px] font-body text-muted uppercase tracking-wide">
-              To
-              <input type="date" value={effEnd} onChange={e => onRangeEnd(e.target.value)}
-                className="border border-border rounded-lg px-3 py-1.5 text-sm font-body text-ink normal-case bg-white" />
-            </label>
-            {!isTodayOnly && (
-              <button onClick={resetRange}
-                className="text-xs font-body font-medium px-3 py-2 rounded-lg border border-border bg-white hover:bg-paper transition-colors">
-                Back to today
-              </button>
-            )}
-            <span className="text-xs font-body text-muted sm:ml-auto">
-              {isTodayOnly
-                ? 'Showing today. Pick a start and end date to see every offer live in a period.'
-                : `Every offer live between ${fmtDate(effStart)} and ${fmtDate(effEnd)}`}
-            </span>
-          </div>
-
-          {!isTodayOnly && (
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-border rounded-xl px-4 py-3">
-              <div className="text-xs font-body text-muted">
-                {rangeLoading
-                  ? `Loading… ${rangeProgress}`
-                  : <>Built live{rangeLoadedAt ? ` at ${rangeLoadedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : ''} · stock figures are <span className="text-ink font-medium">current</span>, not historical, for this period</>}
-              </div>
-              <button onClick={() => { loadBrandTotals(); loadRange(effStart, effEnd, { force: true }) }} disabled={rangeLoading}
-                className="flex items-center gap-1.5 bg-white border border-border text-xs font-body font-medium px-3 py-1.5 rounded-lg hover:bg-paper disabled:opacity-50 transition-colors">
-                {rangeLoading ? <Loader2 size={13} className="animate-spin text-muted" /> : <RefreshCw size={13} className="text-muted" />}
-                Refresh
-              </button>
-            </div>
-          )}
-
-          {/* Sync status bar (today's cached file only) */}
-          {isTodayOnly && (
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-border rounded-xl px-4 py-3">
-            <div className="text-xs font-body text-muted">
-              {dailyFileLoading ? 'Checking last sync…' : dailyFile
-                ? <>Last synced <span className="text-ink font-medium">{new Date(dailyFile.synced_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>{dailyFile.synced_by ? <> by {dailyFile.synced_by === 'unknown' ? 'automated job' : dailyFile.synced_by}</> : ''}</>
-                : 'No file synced yet today.'}
-            </div>
-            <div className="flex items-center gap-3">
-              {pendingSyncCount > 0 && (
-                <span className="flex items-center gap-1.5 text-[11px] font-body font-medium text-warning bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
-                  ⚠ {pendingSyncCount} new request{pendingSyncCount === 1 ? '' : 's'} pending sync
-                </span>
-              )}
-              <button
-                onClick={handleSyncNow}
-                disabled={syncing}
-                className="flex items-center gap-1.5 bg-white border border-border text-xs font-body font-medium px-3 py-1.5 rounded-lg hover:bg-paper disabled:opacity-50 transition-colors">
-                {syncing ? <Loader2 size={13} className="animate-spin text-muted" /> : <RefreshCw size={13} className="text-muted" />}
-                {syncing ? 'Syncing…' : 'Sync again'}
-              </button>
-            </div>
-          </div>
-          )}
-
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-xs font-body text-muted">
-              Showing stock for <span className="text-ink font-medium">{store}</span> — change city using the Store filter above
-            </div>
-            <button
-              onClick={handleByCityExport}
-              disabled={(isTodayOnly ? dailyFileLoading : rangeLoading) || !dailyRowsForCity.length}
-              className="flex items-center gap-1.5 bg-white border border-border text-sm font-body px-3 py-2 rounded-lg hover:bg-paper disabled:opacity-40 transition-colors">
-              <Download size={14} className="text-muted" /> Download Excel
-            </button>
-          </div>
-
-          {(isTodayOnly ? dailyFileLoading : rangeLoading) ? (
-            <div className="flex justify-center items-center h-48 gap-2 text-muted">
-              <Loader2 size={18} className="animate-spin" />
-              <span className="text-sm">{isTodayOnly ? "Loading today's file…" : `Loading offers for the period… ${rangeProgress}`}</span>
-            </div>
-          ) : (isTodayOnly && !dailyFile) ? (
-            <div className="flex flex-col justify-center items-center h-48 gap-3 text-muted">
-              <span className="text-sm">No daily file yet — the automated sync runs at 6:00 AM IST, or click Sync again to build it now.</span>
-            </div>
-          ) : (
-            <>
-              {/* Selected SKUs section */}
-              <div className="bg-white border border-border rounded-xl overflow-hidden">
-                <button
-                  onClick={() => setSelectedSkuOpen(v => !v)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-paper hover:bg-paper/70 transition-colors">
-                  <span className="flex items-center gap-2 text-sm font-body font-medium text-ink">
-                    {selectedSkuOpen ? <ChevronDown size={14} className="text-muted" /> : <ChevronRight size={14} className="text-muted" />}
-                    Selected SKUs
-                    <span className="text-xs text-muted font-normal">({selectedSkuRows.length})</span>
-                  </span>
-                </button>
-                {selectedSkuOpen && (
-                  <table className="w-full text-sm font-body">
-                    <thead>
-                      <tr className="bg-paper text-[11px] uppercase tracking-wide text-muted">
-                        <th className="text-left px-4 py-2.5">Brand</th>
-                        <th className="text-left px-4 py-2.5">Promotion</th>
-                        <th className="text-left px-4 py-2.5">Category</th>
-                        <th className="text-left px-4 py-2.5">Promo Details</th>
-                        <th className="text-left px-4 py-2.5">Ginesys ID</th>
-                        <th className="text-left px-4 py-2.5">SKU</th>
-                        <th className="text-left px-4 py-2.5">MRP</th>
-                        <th className="text-left px-4 py-2.5">RSP</th>
-                        <th className="text-left px-4 py-2.5">WH Stock</th>
-                        <th className="text-left px-4 py-2.5">Store Stock</th>
-                        <th className="text-left px-4 py-2.5 whitespace-nowrap">Live From</th>
-                        <th className="text-left px-4 py-2.5 whitespace-nowrap">Live Till</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedSkuRows.map((x, i) => (
-                        <tr key={i} className="border-t border-border">
-                          <td className="px-4 py-2.5 font-medium text-ink">{x.brand}</td>
-                          <td className="px-4 py-2.5">{x.promo}</td>
-                          <td className="px-4 py-2.5">{x.category || <span className="text-muted">—</span>}</td>
-                          <td className="px-4 py-2.5 max-w-xs truncate" title={x.details}>{x.details || <span className="text-muted">—</span>}</td>
-                          <td className="px-4 py-2.5">{x.ginesys || <span className="text-muted">—</span>}</td>
-                          <td className="px-4 py-2.5"><span className="font-mono text-xs text-ink">{x.sku}</span></td>
-                          <td className="px-4 py-2.5">{x.mrp || <span className="text-muted">—</span>}</td>
-                          <td className="px-4 py-2.5">{x.rsp || <span className="text-muted">—</span>}</td>
-                          <td className="px-4 py-2.5">{x.wh || <span className="text-muted">—</span>}</td>
-                          <td className="px-4 py-2.5">{x.store || <span className="text-muted">—</span>}</td>
-                          <td className="px-4 py-2.5 whitespace-nowrap">{x.from ? fmtDate(x.from) : <span className="text-muted">—</span>}</td>
-                          <td className="px-4 py-2.5 whitespace-nowrap">{fmtDate(x.till)}</td>
-                        </tr>
-                      ))}
-                      {!selectedSkuRows.length && (
-                        <tr><td colSpan={12} className="px-4 py-8 text-center text-muted">No Selected-SKU promos found.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-
-              {/* All SKUs section */}
-              <div className="bg-white border border-border rounded-xl overflow-hidden">
-                <button
-                  onClick={() => setAllSkuOpen(v => !v)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-paper hover:bg-paper/70 transition-colors">
-                  <span className="flex items-center gap-2 text-sm font-body font-medium text-ink">
-                    {allSkuOpen ? <ChevronDown size={14} className="text-muted" /> : <ChevronRight size={14} className="text-muted" />}
-                    All SKUs
-                    <span className="text-xs text-muted font-normal">({allSkuRows.length})</span>
-                  </span>
-                </button>
-                {allSkuOpen && (
-                  <table className="w-full text-sm font-body">
-                    <thead>
-                      <tr className="bg-paper text-[11px] uppercase tracking-wide text-muted">
-                        <th className="text-left px-4 py-2.5">Brand</th>
-                        <th className="text-left px-4 py-2.5">Promotion</th>
-                        <th className="text-left px-4 py-2.5">Category</th>
-                        <th className="text-left px-4 py-2.5">Promo Details</th>
-                        <th className="text-left px-4 py-2.5">Ginesys ID</th>
-                        <th className="text-left px-4 py-2.5 whitespace-nowrap">Brand Stock</th>
-                        <th className="text-left px-4 py-2.5 whitespace-nowrap">Live From</th>
-                        <th className="text-left px-4 py-2.5 whitespace-nowrap">Live Till</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {allSkuRows.map((x, i) => (
-                        <tr key={i} className="border-t border-border">
-                          <td className="px-4 py-2.5 font-medium text-ink">{x.brand}</td>
-                          <td className="px-4 py-2.5">{x.promo}</td>
-                          <td className="px-4 py-2.5">{x.category || <span className="text-muted">—</span>}</td>
-                          <td className="px-4 py-2.5 max-w-xs truncate" title={x.details}>{x.details || <span className="text-muted">—</span>}</td>
-                          <td className="px-4 py-2.5">{x.ginesys || <span className="text-muted">—</span>}</td>
-                          <td className="px-4 py-2.5 whitespace-nowrap" title={brandStockFor(x.brand) ? `Warehouse ${brandStockFor(x.brand).wh} · Store ${brandStockFor(x.brand).store}` : 'No matching brand in the inventory sheet'}>
-                            {brandStockFor(x.brand) ? brandStockFor(x.brand).total : <span className="text-muted">—</span>}
-                          </td>
-                          <td className="px-4 py-2.5 whitespace-nowrap">{x.from ? fmtDate(x.from) : <span className="text-muted">—</span>}</td>
-                          <td className="px-4 py-2.5 whitespace-nowrap">{fmtDate(x.till)}</td>
-                        </tr>
-                      ))}
-                      {!allSkuRows.length && (
-                        <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">No All-SKU promos found.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+        <DailyDump />
       ) : calTab === 'pickPhoto' ? (
         <div className="space-y-4">
           <div className="text-xs font-body text-muted bg-white border border-border rounded-xl px-4 py-3">
