@@ -6,6 +6,7 @@ import {
   STATUS_OPTIONS, CURRENT_STATUS_OPTIONS, SHOPIFY_STATUS_OPTIONS,
   CATEGORIES, STATUS_STYLES, fmtDate, exportCSV,
 } from '../lib/constants.jsx'
+import { canonicalStore, STORE_HINT } from '../lib/storeText'
 import { Search, RefreshCw, Plus, ChevronDown, ExternalLink, Loader2, Filter, Download, RotateCcw, Pencil, History, X, Check, Upload } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { useSettings } from '../lib/SettingsContext'
@@ -882,6 +883,7 @@ function EditPanel({ row: r, onPatch, isAdmin, userEmail }) {
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [storeErr, setStoreErr] = useState('')
 
   const isDirty =
     draft.promo_details !== (r.promo_details || '') ||
@@ -889,13 +891,18 @@ function EditPanel({ row: r, onPatch, isAdmin, userEmail }) {
     JSON.stringify(draft.date_ranges) !== JSON.stringify(r.date_ranges || [])
 
   const handleSave = async () => {
+    // A hand-typed Store is tidied into the standard form; one with no recognisable store is refused
+    const storeEdited = draft.store !== (r.store || '')
+    const newStore = storeEdited ? canonicalStore(draft.store) : (r.store || '')
+    if (storeEdited && !newStore) { setStoreErr(`Store must include at least one of: ${STORE_HINT}`); return }
+    setStoreErr('')
     setSaving(true)
     const changes = []
     if (draft.promo_details !== (r.promo_details || '')) {
       changes.push({ promo_request_id: r.promo_request_id, field_name: 'promo_details', old_value: r.promo_details || '', new_value: draft.promo_details, edited_by: userEmail })
     }
-    if (draft.store !== (r.store || '')) {
-      changes.push({ promo_request_id: r.promo_request_id, field_name: 'store', old_value: r.store || '', new_value: draft.store, edited_by: userEmail })
+    if (newStore !== (r.store || '')) {
+      changes.push({ promo_request_id: r.promo_request_id, field_name: 'store', old_value: r.store || '', new_value: newStore, edited_by: userEmail })
     }
     const dateRangesChanged = JSON.stringify(draft.date_ranges) !== JSON.stringify(r.date_ranges || [])
     if (dateRangesChanged) {
@@ -903,7 +910,7 @@ function EditPanel({ row: r, onPatch, isAdmin, userEmail }) {
     }
     if (changes.length) {
       await supabase.from('promo_edits').insert(changes)
-      await onPatch(r.id, { promo_details: draft.promo_details, store: draft.store, ...(dateRangesChanged ? { date_ranges: draft.date_ranges } : {}) })
+      await onPatch(r.id, { promo_details: draft.promo_details, store: newStore, ...(dateRangesChanged ? { date_ranges: draft.date_ranges } : {}) })
     }
     setSaving(false)
     setSaved(true)
@@ -966,8 +973,10 @@ function EditPanel({ row: r, onPatch, isAdmin, userEmail }) {
             <input
               className="w-full bg-white border border-border rounded-lg px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-accent/20"
               value={draft.store}
-              onChange={e => setDraft(d => ({ ...d, store: e.target.value }))}
+              onChange={e => { setStoreErr(''); setDraft(d => ({ ...d, store: e.target.value })) }}
             />
+            <p className="text-[10px] font-body text-muted mt-1">Use: {STORE_HINT} (separate with commas). Other spellings are tidied up when you save.</p>
+            {storeErr && <p className="text-[11px] font-body text-danger mt-1">{storeErr}</p>}
           </div>
           <div>
             <label className="text-[10px] font-mono uppercase text-muted mb-1 block">Date Ranges</label>
