@@ -13,6 +13,11 @@ import { StatusPanel } from '../components/StatusPanel'
 import { mechanicLabel } from '../components/PromoMechanic'
 import { SkuReUpload } from '../components/SkuReUpload'
 
+// "Promo Closure" is not a status: this pill shows every closure request (offer type Promo Closure), whatever its status
+const CLOSURE_PILL = 'Promo Closure'
+const CLOSURE_STYLE = 'bg-orange-50 text-orange-700 border-orange-200'
+const isClosureRow = (r) => r.offer_type === 'Promo Closure'
+
 // Get the earliest start date from date_ranges
 function getStartDate(r) {
   const ranges = Array.isArray(r.date_ranges) ? r.date_ranges : []
@@ -195,7 +200,7 @@ export default function Board() {
       (r.promotion_name || '').toLowerCase().includes(q) ||
       (r.promo_details || '').toLowerCase().includes(q)
     return matchQ &&
-      (fStatus === 'All' || r.status === fStatus) &&
+      (fStatus === 'All' || (fStatus === CLOSURE_PILL ? isClosureRow(r) : r.status === fStatus)) &&
       (fCategory === 'All' || r.category === fCategory) &&
       (fStore === 'All' || (r.store || '').includes(fStore)) &&
       (fCampaign === 'All' || r.campaign_id === fCampaign) &&
@@ -222,7 +227,7 @@ export default function Board() {
 
   const pastSectionRef = useRef(null)
 
-  const counts = STATUS_OPTIONS.reduce((a, s) => ({ ...a, [s]: rows.filter(r => r.status === s).length }), {})
+  const counts = STATUS_OPTIONS.reduce((a, s) => ({ ...a, [s]: rows.filter(r => r.status === s).length }), { [CLOSURE_PILL]: rows.filter(isClosureRow).length })
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 fade-in">
@@ -291,11 +296,11 @@ export default function Board() {
 
       {/* Status pills */}
       <div className="flex flex-wrap gap-1.5 mb-4">
-        {['All', ...STATUS_OPTIONS].map(s => (
-          <button key={s} onClick={() => setFStatus(s)}
+        {['All', ...STATUS_OPTIONS, CLOSURE_PILL].map(s => (
+          <button key={s} onClick={() => setFStatus(s)} title={s === CLOSURE_PILL ? 'Only promo closure requests' : undefined}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-mono uppercase tracking-wide border transition-all ${
               fStatus === s
-                ? s === 'All' ? 'bg-ink text-white border-ink' : `${STATUS_STYLES[s]} border`
+                ? s === 'All' ? 'bg-ink text-white border-ink' : `${s === CLOSURE_PILL ? CLOSURE_STYLE : STATUS_STYLES[s]} border`
                 : 'bg-white border-border text-muted hover:text-ink'
             }`}>
             {s}{s !== 'All' && <span className="opacity-50 ml-0.5">({counts[s] || 0})</span>}
