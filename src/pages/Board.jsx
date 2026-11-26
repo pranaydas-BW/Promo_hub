@@ -191,7 +191,8 @@ export default function Board() {
     if (newRow) setRows(prev => [newRow, ...prev])
   }
 
-  const filtered = rows.filter(r => {
+  // skipStatus=true: match every filter except the status pill (the pill numbers are counted that way)
+  const matchesFilters = (r, skipStatus) => {
     const q = search.toLowerCase()
     const matchQ = !q ||
       (r.brand_names || '').toLowerCase().includes(q) ||
@@ -200,7 +201,7 @@ export default function Board() {
       (r.promotion_name || '').toLowerCase().includes(q) ||
       (r.promo_details || '').toLowerCase().includes(q)
     return matchQ &&
-      (fStatus === 'All' || (fStatus === CLOSURE_PILL ? isClosureRow(r) : r.status === fStatus)) &&
+      (skipStatus || fStatus === 'All' || (fStatus === CLOSURE_PILL ? isClosureRow(r) : r.status === fStatus)) &&
       (fCategory === 'All' || r.category === fCategory) &&
       (fStore === 'All' || (r.store || '').includes(fStore)) &&
       (fCampaign === 'All' || r.campaign_id === fCampaign) &&
@@ -217,7 +218,9 @@ export default function Board() {
           return true
         })
       })()
-  })
+  }
+  const filtered = rows.filter(r => matchesFilters(r, false))
+  const facet = rows.filter(r => matchesFilters(r, true))
 
   // #5 — split into active (top) and past (bottom)
   const activeRows = filtered.filter(r => isActivePromo(r) && (fCurrent === 'All' || r.current_status === fCurrent))
@@ -227,7 +230,7 @@ export default function Board() {
 
   const pastSectionRef = useRef(null)
 
-  const counts = STATUS_OPTIONS.reduce((a, s) => ({ ...a, [s]: rows.filter(r => r.status === s).length }), { [CLOSURE_PILL]: rows.filter(isClosureRow).length })
+  const counts = STATUS_OPTIONS.reduce((a, s) => ({ ...a, [s]: facet.filter(r => r.status === s).length }), { [CLOSURE_PILL]: facet.filter(isClosureRow).length })
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 fade-in">
@@ -303,7 +306,7 @@ export default function Board() {
                 ? s === 'All' ? 'bg-ink text-white border-ink' : `${s === CLOSURE_PILL ? CLOSURE_STYLE : STATUS_STYLES[s]} border`
                 : 'bg-white border-border text-muted hover:text-ink'
             }`}>
-            {s}{s !== 'All' && <span className="opacity-50 ml-0.5">({counts[s] || 0})</span>}
+            {s}<span className="opacity-50 ml-0.5">({s === 'All' ? facet.length : (counts[s] || 0)})</span>
           </button>
         ))}
       </div>
