@@ -15,12 +15,16 @@ const fmtUpdated = (iso) => iso
   ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true })
   : ''
 
+// Matched on the city name, so "BH, Hyderabad", "Hyderabad" and "BH HYD" all count as Hyderabad
+const STORE_PATTERNS = { 'VK, Delhi': /delhi/i, 'BH, Hyderabad': /hyderabad|\bhyd\b/i, 'Pune': /pune/i, 'Mumbai': /mumbai/i, 'Online': /online/i }
+
 // rows of a tab that run in the chosen store (the "Store" column lists a promo's stores)
 export function rowsForStore(tab, store) {
   if (!tab) return []
   const i = tab.headers.indexOf('Store')
   if (i < 0 || !store) return tab.rows
-  return tab.rows.filter(r => String(r[i] == null ? '' : r[i]).includes(store))
+  const re = STORE_PATTERNS[store]
+  return tab.rows.filter(r => { const v = String(r[i] == null ? '' : r[i]); return re ? re.test(v) : v.includes(store) })
 }
 
 export default function DailyDump({ store = '' }) {
